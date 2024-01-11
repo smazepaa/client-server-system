@@ -7,7 +7,7 @@
 using namespace std;
 
 class Client {
-private:
+
     SOCKET clientSocket;
     sockaddr_in serverAddr;
     int port = 12345;
@@ -17,7 +17,8 @@ private:
         clientSocket = socket(AF_INET, SOCK_STREAM, 0);
         if (clientSocket == INVALID_SOCKET) {
             cerr << "Error creating socket: " << WSAGetLastError() << endl;
-            throw runtime_error("Error creating socket");
+            WSACleanup();
+            return;
         }
 
         serverAddr.sin_family = AF_INET;
@@ -40,7 +41,7 @@ private:
         WSADATA wsaData;
         if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
             cerr << "WSAStartup failed" << endl;
-            throw std::runtime_error("WSAStartup failed");
+            return;
         }
     }
 
