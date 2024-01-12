@@ -1,4 +1,8 @@
 #include <iostream>
+#include <vector>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
 
@@ -12,6 +16,7 @@ class Client {
     sockaddr_in serverAddr;
     int port = 12345;
     PCWSTR serverIp = L"127.0.0.1";
+    string clientDirectory = "C:/Users/sofma/client-dir";
 
     void clientConfig() {
         clientSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -32,7 +37,7 @@ class Client {
 
         if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
             cerr << "Connect failed with error: " << WSAGetLastError() << endl;
-            throw runtime_error("Connect failed");
+            return;
         }
     }
 
@@ -71,14 +76,35 @@ public:
             return "";
         }
     }
+
+    void inputCommand() {
+        vector<string> inputParams;
+
+        string line;
+        getline(cin, line);
+        cout << line<< endl;
+
+        if (line != "") {
+            sendMessage(line.c_str());
+        }
+        else {
+            cout << "Empty input" << endl;
+        }
+        
+    }
+    
 };
 
 int main() {
 
     Client client;
-    client.sendMessage("Hello, server! How are you?");
-    string response = client.receiveMessage();
-    cout << "Received from server: " << response << endl;
-
+    while (true) {
+        client.inputCommand();
+        string response = client.receiveMessage();
+        cout << "Received from server: " << response << endl;
+    }
+    // client.sendCommand(p);
+    // client.sendMessage("Hello, server! How are you?");
+    
     return 0;
 }

@@ -1,10 +1,15 @@
 #include <iostream>
+#include <vector>
+#include <string>
+#include <sstream>
+#include <filesystem>
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
 
 #pragma comment(lib, "ws2_32.lib")
 
 using namespace std;
+namespace fs = std::filesystem;
 
 class Server {
 
@@ -13,6 +18,8 @@ class Server {
     sockaddr_in serverAddr;
     int port = 12345;
     char buffer[1024]; // for storing the message from client
+    string filename;
+    string serverDirectory = "C:/Users/sofma/server-dir";
 
     void serverConfig() {
         serverSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -80,6 +87,44 @@ class Server {
         WSACleanup();
     }
 
+    void handleCommands(const string& command, const string& filename) {
+        if (command == "LIST") {
+            listFiles();
+            cout << "creating a list" << endl;
+        }
+
+        else if (command == "GET") {
+
+        }
+
+        else if (command == "PUT") {
+
+        }
+
+        else if (command == "INFO") {
+
+        }
+
+        else if (command == "DELETE") {
+
+        }
+
+        else {
+            cout << "invalid command" << endl;
+        }
+    }
+
+    void listFiles(){
+        string fileList = "Files in directory:\n";
+
+        for (const auto& entry : fs::directory_iterator(serverDirectory)) {
+            fileList += entry.path().filename().string() + "\n";
+        }
+
+        // Send the file list to the client
+        sendResponse(fileList.c_str());
+    }
+
 public:
     Server(){
         winsockInit();
@@ -103,12 +148,37 @@ public:
             sendResponse(response);
         }
     }
+
+    void recieveCommands() {
+
+        bool received = receiveMessage();
+        if (received) {
+            cout << "Received data: " << buffer << endl;
+
+            vector<string> params;
+            istringstream iss(buffer);
+            string word;
+            while (iss >> word) {
+                params.push_back(word);
+            }
+
+            string command = move(params[0]);
+
+            if (command != "LIST") {
+                filename = move(params[1]);
+            }
+
+            handleCommands(command, filename);
+        }
+    }
 };
 
 int main() {
     
     Server server;
-    server.communicateWithClient();
+    while (true) {
+        server.recieveCommands();
+    }
 
     return 0;
 }
