@@ -76,7 +76,6 @@ public:
         getline(cin, line);
 
         if (line != "") {
-            sendMessage(line.c_str());
 
             istringstream iss(line);
             string word;
@@ -91,9 +90,20 @@ public:
             }
 
             if (command == "PUT") {
-                sendFile(filename);
+
+                string filePath = clientDirectory + "/" + filename;
+
+                if (!filesystem::exists(filePath)) {
+                    cout << "File does not exist: " << filePath << endl << endl;
+                }
+                else {
+                    sendMessage(line.c_str());
+                    sendFile(filename);
+                }
+                
             }
             else if (command == "LIST") {
+                sendMessage(line.c_str());
             }
         }
         else {
@@ -102,23 +112,19 @@ public:
         
     }
 
-    void receiveMessage() {
+    string receiveMessage() {
         char buffer[1024];
         memset(buffer, 0, 1024);
         int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
         if (bytesReceived > 0) {
-            cout << buffer << endl;
+            return string(buffer);
         }
+        return "";
     }
 
     void sendFile(const string& filename) {
 
         string filePath = clientDirectory + "/" + filename;
-
-        if (!filesystem::exists(filePath)) {
-            cout << "File does not exist: " << filePath << endl;
-            return;
-        }
 
         ifstream file(filePath, ios::binary);
         if (!file.is_open()) {
@@ -146,7 +152,7 @@ int main() {
     Client client;
     while (true) {
         client.inputCommand();
-        client.receiveMessage();
+        cout << client.receiveMessage() << endl;
     }
     // client.sendCommand(p);
     // client.sendMessage("Hello, server! How are you?");
