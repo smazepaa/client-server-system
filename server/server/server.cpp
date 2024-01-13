@@ -19,7 +19,6 @@ class Server {
     sockaddr_in serverAddr;
     int port = 12345;
     char buffer[1024]; // for storing the message from client
-    string filename;
     string serverDirectory = "C:/Users/sofma/server-dir";
 
     void serverConfig() {
@@ -90,6 +89,7 @@ class Server {
 
     void handleCommands(const string& command, const string& filename) {
         if (command == "LIST") {
+
             listFiles();
             cout << "creating a list" << endl;
         }
@@ -99,7 +99,7 @@ class Server {
         }
 
         else if (command == "PUT") {
-
+            receiveFile(filename);
         }
 
         else if (command == "INFO") {
@@ -150,10 +150,9 @@ public:
     }
 
     void recieveCommands() {
-
         bool received = receiveMessage();
         if (received) {
-            cout << "Received data: " << buffer << endl;
+            // cout << "Received data: " << buffer << endl;
 
             vector<string> params;
             istringstream iss(buffer);
@@ -162,28 +161,22 @@ public:
                 params.push_back(word);
             }
 
-            string command = move(params[0]);
-
-            if (command != "LIST") {
-                filename = move(params[1]);
+            if (params.empty()) {
+                cout << "No command received." << endl;
+                return; // No command to process
             }
+
+            string command = params[0];
+            string filename = (params.size() > 1) ? params[1] : "";
 
             handleCommands(command, filename);
         }
     }
 
-    void receiveFile() {
-        // Receive file name
-        char nameBuffer[1024];
-        memset(nameBuffer, 0, 1024);
-        int nameBytes = recv(clientSocket, nameBuffer, 1024, 0);
-        if (nameBytes <= 0) {
-            cout << "Failed to receive file name." << endl;
-            return;
-        }
 
-        string fileName(nameBuffer);
-        string outputFilePath = serverDirectory + "/" + fileName;
+    void receiveFile(const string& filename) {
+
+        string outputFilePath = serverDirectory + "/" + filename;
 
         if (fs::exists(outputFilePath)) {
             cout << "File already exists: " << outputFilePath << endl;
@@ -242,11 +235,9 @@ public:
 int main() {
     
     Server server;
-    /*while (true) {
+    while (true) {
         server.recieveCommands();
-    }*/
-
-    server.receiveFile();
+    }
 
     return 0;
 }

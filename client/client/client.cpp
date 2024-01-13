@@ -72,10 +72,27 @@ public:
 
         string line;
         getline(cin, line);
-        cout << line<< endl;
 
         if (line != "") {
             sendMessage(line.c_str());
+
+            istringstream iss(line);
+            string word;
+            while (iss >> word) {
+                inputParams.push_back(word);
+            }
+            
+            string command = inputParams[0];
+            string filename;
+            if (inputParams.size() == 2) {
+                filename = inputParams[1];
+            }
+
+            if (command == "PUT") {
+                sendFile(filename);
+            }
+            else if (command == "LIST") {
+            }
         }
         else {
             cout << "Empty input" << endl;
@@ -83,15 +100,12 @@ public:
         
     }
 
-    string receiveMessage() {
+    void receiveMessage() {
         char buffer[1024];
         memset(buffer, 0, 1024);
         int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
         if (bytesReceived > 0) {
-            return string(buffer);
-        }
-        else {
-            return "";
+            cout << buffer << endl;
         }
     }
 
@@ -103,8 +117,6 @@ public:
             cerr << "Failed to open file: " << filePath << endl;
             return;
         }
-
-        sendMessage(filename.c_str()); // send filename
 
         const size_t bufferSize = 1024;
         char buffer[bufferSize];
@@ -124,16 +136,15 @@ public:
 int main() {
 
     Client client;
-    /*while (true) {
+    while (true) {
         client.inputCommand();
-        string response = client.receiveMessage();
-        cout << "Received from server: " << response << endl;
-    }*/
+        client.receiveMessage();
+    }
     // client.sendCommand(p);
     // client.sendMessage("Hello, server! How are you?");
 
-    client.sendFile("airflight-booking.pdf");
-    cout << client.receiveMessage();
+    /*client.sendFile("airflight-booking.pdf");
+    cout << client.receiveMessage();*/
     
     return 0;
 }
