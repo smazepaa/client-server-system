@@ -117,15 +117,32 @@ class Server {
         }
     }
 
-    void listFiles(){
-        string fileList = "Files in directory:\n";
+    void listDirectory(const fs::path& path, string& fileList, string indent = "") {
+        for (const auto& entry : fs::directory_iterator(path)) {
+            if (fs::is_directory(entry.status())) {
+                fileList += indent + "[Directory] " + entry.path().filename().string() + "\n";
+                // Recursively list the contents of the subdirectory
+                listDirectory(entry.path(), fileList, indent + "  ");
+            }
+            else {
+                fileList += indent + "[File] " + entry.path().filename().string() + "\n";
+            }
+        }
+    }
 
-        for (const auto& entry : fs::directory_iterator(serverDirectory)) {
-            fileList += entry.path().filename().string() + "\n";
+    void listFiles() {
+        string fileList = "Files in directory: " + serverDirectory + "\n";
+
+        if (fs::is_empty(serverDirectory)) {
+            fileList += "The directory is empty.\n";
+        }
+        else {
+            listDirectory(serverDirectory, fileList);
         }
 
         sendResponse(fileList.c_str());
     }
+
 
     void fileInfo(const string& filename) {
         string filePath = serverDirectory + "/" + filename;
