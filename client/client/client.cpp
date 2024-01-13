@@ -2,6 +2,7 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 #include <string>
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
@@ -9,6 +10,7 @@
 #pragma comment(lib, "ws2_32.lib")
 
 using namespace std;
+namespace fs = std::filesystem;
 
 class Client {
 
@@ -112,9 +114,15 @@ public:
     void sendFile(const string& filename) {
 
         string filePath = clientDirectory + "/" + filename;
+
+        if (!filesystem::exists(filePath)) {
+            cout << "File does not exist: " << filePath << endl;
+            return;
+        }
+
         ifstream file(filePath, ios::binary);
         if (!file.is_open()) {
-            cerr << "Failed to open file: " << filePath << endl;
+            cout << "Failed to open file" << endl;
             return;
         }
 
