@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <fstream>
 #include <sstream>
 #include <filesystem>
 #include <WinSock2.h>
@@ -121,7 +122,6 @@ class Server {
             fileList += entry.path().filename().string() + "\n";
         }
 
-        // Send the file list to the client
         sendResponse(fileList.c_str());
     }
 
@@ -171,14 +171,82 @@ public:
             handleCommands(command, filename);
         }
     }
+
+    void receiveFile() {
+        // Receive file name
+        char nameBuffer[1024];
+        memset(nameBuffer, 0, 1024);
+        int nameBytes = recv(clientSocket, nameBuffer, 1024, 0);
+        if (nameBytes <= 0) {
+            cout << "Failed to receive file name." << endl;
+            return;
+        }
+
+        string fileName(nameBuffer);
+        string outputFilePath = serverDirectory + "/" + fileName;
+
+        if (fs::exists(outputFilePath)) {
+            cout << "File already exists: " << outputFilePath << endl;
+            const char* response = "File already exists";
+            sendResponse(response);
+            return;
+        }
+
+        ofstream outputFile(outputFilePath, ios::binary);
+        if (!outputFile.is_open()) {
+            cout << "Failed to open file for writing: " << outputFilePath << endl;
+            return;
+        }
+
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
+        string eofMarker = "<EOF>";
+        string fileData;
+
+        while (true) {
+            memset(buffer, 0, bufferSize);
+            int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
+
+            if (bytesReceived <= 0) {
+                cout << "Failed to receive data or connection closed by client." << endl;
+                const char* response = "File transfer failed";
+                sendResponse(response);
+                break;
+            }
+
+            fileData.append(buffer, bytesReceived);
+
+            // Check for EOF marker
+            size_t eofPos = fileData.find(eofMarker);
+            if (eofPos != string::npos) {
+                // Write data to file excluding EOF marker
+                outputFile.write(fileData.c_str(), eofPos);
+                break;
+            }
+
+            // Write to file if buffer is full and EOF marker not found
+            if (fileData.size() >= bufferSize) {
+                outputFile.write(fileData.c_str(), fileData.size() - eofMarker.size());
+                fileData.erase(0, fileData.size() - eofMarker.size());
+            }
+        }
+
+        outputFile.close();
+        cout << "File transfer completed and saved to: " << outputFilePath << endl;
+        const char* response = "File transfer completed";
+        sendResponse(response);
+    }
+
 };
 
 int main() {
     
     Server server;
-    while (true) {
+    /*while (true) {
         server.recieveCommands();
-    }
+    }*/
+
+    server.receiveFile();
 
     return 0;
 }

@@ -50,6 +50,12 @@ class Client {
         }
     }
 
+    void sendMessage(const char* message) {
+        send(clientSocket, message, (int)strlen(message), 0);
+    }
+
+    
+
 public:
     Client(){
         winsockInit();
@@ -59,22 +65,6 @@ public:
     ~Client() {
         closesocket(clientSocket);
         WSACleanup();
-    }
-
-    void sendMessage(const char* message) {
-        send(clientSocket, message, (int)strlen(message), 0);
-    }
-
-    string receiveMessage() {
-        char buffer[1024];
-        memset(buffer, 0, 1024);
-        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-        if (bytesReceived > 0) {
-            return string(buffer);
-        }
-        else {
-            return "";
-        }
     }
 
     void inputCommand() {
@@ -92,19 +82,58 @@ public:
         }
         
     }
-    
+
+    string receiveMessage() {
+        char buffer[1024];
+        memset(buffer, 0, 1024);
+        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesReceived > 0) {
+            return string(buffer);
+        }
+        else {
+            return "";
+        }
+    }
+
+    void sendFile(const string& filename) {
+
+        string filePath = clientDirectory + "/" + filename;
+        ifstream file(filePath, ios::binary);
+        if (!file.is_open()) {
+            cerr << "Failed to open file: " << filePath << endl;
+            return;
+        }
+
+        sendMessage(filename.c_str()); // send filename
+
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
+
+        while (file.read(buffer, bufferSize) || file.gcount()) {
+            send(clientSocket, buffer, file.gcount(), 0); // send content by chunks
+        }
+
+        file.close();
+
+        const char* eofMarker = "<EOF>";
+        sendMessage(eofMarker); // send end-of-file marker
+    }
+
 };
 
 int main() {
 
     Client client;
-    while (true) {
+    /*while (true) {
         client.inputCommand();
         string response = client.receiveMessage();
         cout << "Received from server: " << response << endl;
-    }
+    }*/
     // client.sendCommand(p);
     // client.sendMessage("Hello, server! How are you?");
+
+    client.sendFile("airflight-booking.pdf");
+    cout << client.receiveMessage();
     
     return 0;
 }
