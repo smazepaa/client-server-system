@@ -99,15 +99,17 @@ public:
                 else {
                     sendMessage(line.c_str());
                     sendFile(filename);
+                    cout << receiveMessage() << endl;
                 }
                 
             }
-            else if (command == "LIST") {
+            else if (command == "LIST" || command == "INFO") {
                 sendMessage(line.c_str());
+                cout << receiveMessage() << endl;
             }
         }
         else {
-            cout << "Empty input" << endl;
+            cout << "Empty input\n" << endl;
         }
         
     }
@@ -152,7 +154,6 @@ int main() {
     Client client;
     while (true) {
         client.inputCommand();
-        cout << client.receiveMessage() << endl;
     }
     // client.sendCommand(p);
     // client.sendMessage("Hello, server! How are you?");

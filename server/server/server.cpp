@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -103,7 +105,7 @@ class Server {
         }
 
         else if (command == "INFO") {
-
+            fileInfo(filename);
         }
 
         else if (command == "DELETE") {
@@ -124,6 +126,45 @@ class Server {
 
         sendResponse(fileList.c_str());
     }
+
+    void fileInfo(const string& filename) {
+        string filePath = serverDirectory + "/" + filename;
+
+        if (!fs::exists(filePath)) {
+            cout << "File does not exist: " << filePath << endl;
+            sendResponse("File does not exist \n");
+            return;
+        }
+
+        try {
+            auto fsize = fs::file_size(filePath);
+            auto ftime = fs::last_write_time(filePath);
+            auto ftype = fs::is_directory(filePath) ? "Directory" : "File";
+
+            // Convert file_time_type to time_t
+            auto sctp = chrono::time_point_cast<chrono::system_clock::duration>(
+                ftime - fs::file_time_type::clock::now() + chrono::system_clock::now());
+            time_t cftime = chrono::system_clock::to_time_t(sctp);
+
+            // Convert time_t to tm for formatting
+            std::tm* timeinfo = std::localtime(&cftime);
+
+            // Format the time to a string
+            char timeStr[80];
+            std::strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
+
+            string response = "File: " + filename + "\nSize: " + to_string(fsize) + " bytes\nType: "
+                + ftype + "\nLast Modified: " + timeStr;
+
+            sendResponse(response.c_str());
+        }
+        catch (const fs::filesystem_error& e) {
+            cerr << "Error retrieving file info: " << e.what() << endl;
+            sendResponse("Error retrieving file info");
+        }
+    }
+
+
 
 public:
     Server(){
