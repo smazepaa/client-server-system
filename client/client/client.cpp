@@ -56,7 +56,32 @@ class Client {
         send(clientSocket, message, (int)strlen(message), 0);
     }
 
-    
+    string receiveMessage() {
+        string totalData;
+        char buffer[1024];
+        const string endMarker = "<END>";
+        size_t found;
+
+        while (true) {
+            memset(buffer, 0, 1024);
+            int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+
+            if (bytesReceived > 0) {
+                totalData.append(buffer, bytesReceived);
+
+                found = totalData.find(endMarker);
+                if (found != string::npos) {
+                    totalData.erase(found, endMarker.length()); // remove the end marker
+                    break;
+                }
+            }
+            else {
+                break;
+            }
+        }
+
+        return totalData;
+    }
 
 public:
     Client(){
@@ -112,16 +137,6 @@ public:
             cout << "Empty input\n" << endl;
         }
         
-    }
-
-    string receiveMessage() {
-        char buffer[1024];
-        memset(buffer, 0, 1024);
-        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-        if (bytesReceived > 0) {
-            return string(buffer);
-        }
-        return "";
     }
 
     void sendFile(const string& filename) {

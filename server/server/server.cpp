@@ -13,6 +13,7 @@
 
 using namespace std;
 namespace fs = std::filesystem;
+using namespace fs;
 
 class Server {
 
@@ -74,8 +75,17 @@ class Server {
         }
     }
 
-    void sendResponse(const char* response) {
-        send(clientSocket, response, (int)strlen(response), 0);
+    void sendResponse(const string& response) {
+        string dataToSend = response + "<END>"; // end marker
+        const size_t bufferSize = 1024;
+        size_t dataLength = dataToSend.length();
+        size_t sent = 0;
+
+        while (sent < dataLength) {
+            size_t toSend = min(bufferSize, dataLength - sent);
+            send(clientSocket, dataToSend.c_str() + sent, toSend, 0);
+            sent += toSend;
+        }
     }
 
     bool receiveMessage() {
@@ -91,9 +101,7 @@ class Server {
 
     void handleCommands(const string& command, const string& filename) {
         if (command == "LIST") {
-
             listFiles();
-            cout << "creating a list" << endl;
         }
 
         else if (command == "GET") {
@@ -113,14 +121,14 @@ class Server {
         }
 
         else {
-            cout << "invalid command" << endl;
+            cout << "Invalid command" << endl;
         }
     }
 
-    void listDirectory(const fs::path& path, string& fileList, string indent = "") {
-        for (const auto& entry : fs::directory_iterator(path)) {
-            if (fs::is_directory(entry.status())) {
-                fileList += indent + "[Directory] " + entry.path().filename().string() + "\n";
+    void listDirectory(const path& path, string& fileList, string indent = "") {
+        for (const auto& entry : directory_iterator(path)) {
+            if (is_directory(entry.status())) {
+                fileList += indent + "[Folder] " + entry.path().filename().string() + "\n";
                 // Recursively list the contents of the subdirectory
                 listDirectory(entry.path(), fileList, indent + "  ");
             }
@@ -134,54 +142,58 @@ class Server {
         string fileList = "Files in directory: " + serverDirectory + "\n";
 
         if (fs::is_empty(serverDirectory)) {
-            fileList += "The directory is empty.\n";
+            fileList = "Server directory is empty.\n";
         }
         else {
             listDirectory(serverDirectory, fileList);
         }
 
         sendResponse(fileList.c_str());
+        cout << "Request completed" << endl;
     }
 
 
     void fileInfo(const string& filename) {
         string filePath = serverDirectory + "/" + filename;
 
-        if (!fs::exists(filePath)) {
+        if (!exists(filePath)) {
             cout << "File does not exist: " << filePath << endl;
             sendResponse("File does not exist \n");
             return;
         }
 
-        try {
-            auto fsize = fs::file_size(filePath);
-            auto ftime = fs::last_write_time(filePath);
-            auto ftype = fs::is_directory(filePath) ? "Directory" : "File";
+        auto fsize = file_size(filePath);
+        auto ftime = last_write_time(filePath);
+        auto ftype = is_directory(filePath) ? "Directory" : "File";
 
-            // Convert file_time_type to time_t
-            auto sctp = chrono::time_point_cast<chrono::system_clock::duration>(
-                ftime - fs::file_time_type::clock::now() + chrono::system_clock::now());
-            time_t cftime = chrono::system_clock::to_time_t(sctp);
+        // Convert file_time_type to time_t
+        auto sctp = chrono::time_point_cast<chrono::system_clock::duration>(
+            ftime - file_time_type::clock::now() + chrono::system_clock::now());
+        time_t cftime = chrono::system_clock::to_time_t(sctp);
 
-            // Convert time_t to tm for formatting
-            std::tm* timeinfo = std::localtime(&cftime);
+        // Convert time_t to tm for formatting
+        tm* timeinfo = localtime(&cftime);
 
-            // Format the time to a string
-            char timeStr[80];
-            std::strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
+        // Format the time to a string
+        char timeStr[80];
+        strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
 
-            string response = "File: " + filename + "\nSize: " + to_string(fsize) + " bytes\nType: "
-                + ftype + "\nLast Modified: " + timeStr;
+        string response = "File: " + filename + "\nSize: " + to_string(fsize) + " bytes\nType: "
+            + ftype + "\nLast Modified: " + timeStr;
 
-            sendResponse(response.c_str());
-        }
-        catch (const fs::filesystem_error& e) {
-            cerr << "Error retrieving file info: " << e.what() << endl;
-            sendResponse("Error retrieving file info");
-        }
+        sendResponse(response.c_str());
     }
 
+    void communicateWithClient() {
 
+        bool received = receiveMessage();
+        if (received) {
+            cout << "Received data: " << buffer << endl;
+
+            const char* response = "Hello, client! This is the server.";
+            sendResponse(response);
+        }
+    }
 
 public:
     Server(){
@@ -196,21 +208,9 @@ public:
         cleanup();
     }
 
-    void communicateWithClient() {
-        
-        bool received = receiveMessage();
-        if (received) {
-            cout << "Received data: " << buffer << endl;
-
-            const char* response = "Hello, client! This is the server.";
-            sendResponse(response);
-        }
-    }
-
     void recieveCommands() {
         bool received = receiveMessage();
         if (received) {
-            // cout << "Received data: " << buffer << endl;
 
             vector<string> params;
             istringstream iss(buffer);
@@ -221,7 +221,7 @@ public:
 
             if (params.empty()) {
                 cout << "No command received." << endl;
-                return; // No command to process
+                return;
             }
 
             string command = params[0];
@@ -231,12 +231,11 @@ public:
         }
     }
 
-
     void receiveFile(const string& filename) {
 
         string outputFilePath = serverDirectory + "/" + filename;
 
-        if (fs::exists(outputFilePath)) {
+        if (exists(outputFilePath)) {
             cout << "File already exists: " << outputFilePath << endl;
             const char* response = "File already exists";
             sendResponse(response);
