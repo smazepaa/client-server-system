@@ -21,9 +21,9 @@ class Server {
     SOCKET clientSocket;
     sockaddr_in serverAddr;
     int port = 12345;
-    char buffer[1024]; // for storing the message from client
     string serverDirectory = "C:/Users/sofma/server-dir";
 
+    // methods for setting up the connection
     void serverConfig() {
         serverSocket = socket(AF_INET, SOCK_STREAM, 0);
         if (serverSocket == INVALID_SOCKET)
@@ -75,6 +75,12 @@ class Server {
         }
     }
 
+    void cleanup() {
+        closesocket(serverSocket);
+        WSACleanup();
+    }
+
+    // commands' methods
     void sendResponse(const string& response) {
         string dataToSend = response + "<END>"; // end marker
         const size_t bufferSize = 1024;
@@ -88,15 +94,14 @@ class Server {
         }
     }
 
-    bool receiveMessage() {
+    string receiveMessage() {
+        char buffer[1024]; // for storing the message from client
         memset(buffer, 0, 1024);
         int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-        return (bytesReceived > 0);
-    }
-
-    void cleanup() {
-        closesocket(serverSocket);
-        WSACleanup();
+        if (bytesReceived > 0) {
+            return string(buffer);
+        }
+        return "";
     }
 
     void handleCommands(const string& command, const string& filename) {
@@ -105,7 +110,8 @@ class Server {
         }
 
         else if (command == "GET") {
-
+            sendFile(filename);
+            cout << receiveMessage() << endl;
         }
 
         else if (command == "PUT") {
@@ -185,9 +191,9 @@ class Server {
 
     void communicateWithClient() {
 
-        bool received = receiveMessage();
-        if (received) {
-            cout << "Received data: " << buffer << endl;
+        string received = receiveMessage();
+        if (received != "") {
+            cout << "Received data: " << received << endl;
 
             const char* response = "Hello, client! This is the server.";
             sendResponse(response);
@@ -196,23 +202,58 @@ class Server {
 
     void deleteFile(const string& filename) {
         string filePath = serverDirectory + "/" + filename;
+        string fileType = is_directory(filePath) ? "Folder" : "File";
 
         if (!exists(filePath)) {
-            cout << "File does not exist: " << filePath << endl;
-            sendResponse("File does not exist.\n");
+            cout << fileType << " does not exist: " << filePath << endl;
+            sendResponse(fileType + " does not exist on the server.\n");
             return;
         }
 
         if (remove(filePath)) {
-            cout << "File deleted successfully: " << filePath << endl;
-            sendResponse("File deleted successfully.\n");
+            cout << fileType << " was successfully deleted." << endl;
+            sendResponse(fileType + " was successfully deleted.\n");
         }
 
         else {
-            cout << "Failed to delete file: " << filePath << endl;
-            sendResponse("Failed to delete file.\n");
+            cout << "Failed to delete: " << filePath << endl;
+            sendResponse("Failed to delete " + filename);
         }
     }
+
+    void sendFile(const string& filename) {
+        string filePath = serverDirectory + "/" + filename;
+
+        // Check if the file exists
+        if (!exists(filePath)) {
+            cout << "File does not exist: " << filePath << endl;
+            sendResponse("No such file on the server\n");
+            return;
+        }
+
+        ifstream file(filePath, ios::binary);
+        if (!file.is_open()) {
+            cout << "Failed to open file" << endl;
+            sendResponse("Failed to open file\n");
+            return;
+        }
+
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
+
+        while (file.read(buffer, bufferSize) || file.gcount()) {
+            send(clientSocket, buffer, file.gcount(), 0); // Send content by chunks
+        }
+
+        file.close();
+
+        // Send EOF marker directly
+        const char* eofMarker = "<EOF>";
+        send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
+
+        sendResponse("File transfer completed\n");
+    }
+
 
 public:
     Server(){
@@ -228,11 +269,11 @@ public:
     }
 
     void recieveCommands() {
-        bool received = receiveMessage();
-        if (received) {
+        string received = receiveMessage();
+        if (received != "") {
 
             vector<string> params;
-            istringstream iss(buffer);
+            istringstream iss(received);
             string word;
             while (iss >> word) {
                 params.push_back(word);

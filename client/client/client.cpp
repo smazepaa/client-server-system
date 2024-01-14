@@ -80,7 +80,6 @@ class Client {
                 break;
             }
         }
-
         return totalData;
     }
 
@@ -105,6 +104,60 @@ class Client {
 
         const char* eofMarker = "<EOF>";
         sendMessage(eofMarker); // send end-of-file marker
+    }
+
+    void receiveFile(const string& filename) {
+
+        string outputFilePath = clientDirectory + "/" + filename;
+
+        if (exists(outputFilePath)) {
+            cout << "File already exists: " << outputFilePath << endl;
+            const char* response = "File already exists";
+            sendMessage(response);
+            return;
+        }
+
+        ofstream outputFile(outputFilePath, ios::binary);
+        if (!outputFile.is_open()) {
+            cout << "Failed to open file for writing: " << outputFilePath << endl;
+            return;
+        }
+
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
+        string eofMarker = "<EOF>";
+        string fileData;
+
+        while (true) {
+            memset(buffer, 0, bufferSize);
+            int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
+
+            if (bytesReceived <= 0) {
+                cout << "Failed to receive data or connection closed by client." << endl;
+                const char* response = "File transfer failed";
+                sendMessage(response);
+                return;
+            }
+
+            fileData.append(buffer, bytesReceived);
+
+            // Check for EOF marker
+            size_t eofPos = fileData.find(eofMarker);
+            if (eofPos != string::npos) {
+                outputFile.write(fileData.c_str(), eofPos); // remove end-of-file marker
+                break;
+            }
+
+            // Write to file if buffer is full and EOF marker not found
+            if (fileData.size() >= bufferSize) {
+                outputFile.write(fileData.c_str(), fileData.size() - eofMarker.size());
+                fileData.erase(0, fileData.size() - eofMarker.size());
+            }
+        }
+
+        outputFile.close();
+        const char* response = "File transfer completed";
+        sendMessage(response);
     }
 
 public:
@@ -156,6 +209,15 @@ public:
             else if (command == "LIST" || command == "INFO" || command == "DELETE") {
                 sendMessage(line.c_str());
                 cout << receiveMessage() << endl;
+            }
+
+            else if (command == "GET") {
+                sendMessage(line.c_str());
+                receiveFile(filename);
+                cout << receiveMessage() << endl;
+            }
+            else {
+                cout << "Invalid command" << endl;
             }
         }
         else {
