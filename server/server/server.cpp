@@ -80,7 +80,7 @@ class Server {
         WSACleanup();
     }
 
-    // commands' methods
+    // commands methods
     void sendResponse(const string& response) {
         string dataToSend = response + "<END>"; // end marker
         const size_t bufferSize = 1024;
@@ -189,17 +189,6 @@ class Server {
         sendResponse(response.c_str());
     }
 
-    void communicateWithClient() {
-
-        string received = receiveMessage();
-        if (received != "") {
-            cout << "Received data: " << received << endl;
-
-            const char* response = "Hello, client! This is the server.";
-            sendResponse(response);
-        }
-    }
-
     void deleteFile(const string& filename) {
         string filePath = serverDirectory + "/" + filename;
         string fileType = is_directory(filePath) ? "Folder" : "File";
@@ -254,6 +243,61 @@ class Server {
         sendResponse("File transfer completed\n");
     }
 
+    void receiveFile(const string& filename) {
+
+        string outputFilePath = serverDirectory + "/" + filename;
+
+        if (exists(outputFilePath)) {
+            string response = "File already exists: " + outputFilePath;
+            cout << response << endl;
+            sendResponse(response);
+            return;
+        }
+
+        ofstream outputFile(outputFilePath, ios::binary);
+        if (!outputFile.is_open()) {
+            string response = "Failed to open file for writing: " + outputFilePath;
+            cout << response << endl;
+            sendResponse(response);
+            return;
+        }
+
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
+        string eofMarker = "<EOF>";
+        string fileData;
+
+        while (true) {
+            memset(buffer, 0, bufferSize);
+            int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
+
+            if (bytesReceived <= 0) {
+                cout << "Failed to receive data or connection closed by client." << endl;
+                const char* response = "File transfer failed";
+                sendResponse(response);
+                break;
+            }
+
+            fileData.append(buffer, bytesReceived);
+
+            size_t eofPos = fileData.find(eofMarker); // check for the end of file
+            if (eofPos != string::npos) {
+                outputFile.write(fileData.c_str(), eofPos); // remove end-of-file marker
+                break;
+            }
+
+            // Write to file if buffer is full and EOF marker not found
+            if (fileData.size() >= bufferSize) {
+                outputFile.write(fileData.c_str(), fileData.size() - eofMarker.size());
+                fileData.erase(0, fileData.size() - eofMarker.size());
+            }
+        }
+
+        outputFile.close();
+        cout << "File transfer completed and saved to: " << outputFilePath << endl;
+        const char* response = "File transfer completed";
+        sendResponse(response);
+    }
 
 public:
     Server(){
@@ -289,62 +333,6 @@ public:
 
             handleCommands(command, filename);
         }
-    }
-
-    void receiveFile(const string& filename) {
-
-        string outputFilePath = serverDirectory + "/" + filename;
-
-        if (exists(outputFilePath)) {
-            cout << "File already exists: " << outputFilePath << endl;
-            const char* response = "File already exists";
-            sendResponse(response);
-            return;
-        }
-
-        ofstream outputFile(outputFilePath, ios::binary);
-        if (!outputFile.is_open()) {
-            cout << "Failed to open file for writing: " << outputFilePath << endl;
-            return;
-        }
-
-        const size_t bufferSize = 1024;
-        char buffer[bufferSize];
-        string eofMarker = "<EOF>";
-        string fileData;
-
-        while (true) {
-            memset(buffer, 0, bufferSize);
-            int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
-
-            if (bytesReceived <= 0) {
-                cout << "Failed to receive data or connection closed by client." << endl;
-                const char* response = "File transfer failed";
-                sendResponse(response);
-                break;
-            }
-
-            fileData.append(buffer, bytesReceived);
-
-            // Check for EOF marker
-            size_t eofPos = fileData.find(eofMarker);
-            if (eofPos != string::npos) {
-                // Write data to file excluding EOF marker
-                outputFile.write(fileData.c_str(), eofPos);
-                break;
-            }
-
-            // Write to file if buffer is full and EOF marker not found
-            if (fileData.size() >= bufferSize) {
-                outputFile.write(fileData.c_str(), fileData.size() - eofMarker.size());
-                fileData.erase(0, fileData.size() - eofMarker.size());
-            }
-        }
-
-        outputFile.close();
-        cout << "File transfer completed and saved to: " << outputFilePath << endl;
-        const char* response = "File transfer completed";
-        sendResponse(response);
     }
 
 };

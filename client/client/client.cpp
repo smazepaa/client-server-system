@@ -21,6 +21,7 @@ class Client {
     PCWSTR serverIp = L"127.0.0.1";
     string clientDirectory = "C:/Users/sofma/client-dir";
 
+    //setup methods
     void clientConfig() {
         clientSocket = socket(AF_INET, SOCK_STREAM, 0);
         if (clientSocket == INVALID_SOCKET) {
@@ -53,6 +54,12 @@ class Client {
         }
     }
 
+    void cleanup() {
+        closesocket(clientSocket);
+        WSACleanup();
+    }
+
+    // commands methods
     void sendMessage(const char* message) {
         send(clientSocket, message, (int)strlen(message), 0);
     }
@@ -111,9 +118,9 @@ class Client {
         string outputFilePath = clientDirectory + "/" + filename;
 
         if (exists(outputFilePath)) {
-            cout << "File already exists: " << outputFilePath << endl;
-            const char* response = "File already exists";
-            sendMessage(response);
+            string response = "File already exists" + outputFilePath;
+            cout << response << endl;
+            sendMessage(response.c_str());
             return;
         }
 
@@ -133,22 +140,22 @@ class Client {
             int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
 
             if (bytesReceived <= 0) {
-                cout << "Failed to receive data or connection closed by client." << endl;
                 const char* response = "File transfer failed";
+                cout << response << endl;
                 sendMessage(response);
                 return;
             }
 
             fileData.append(buffer, bytesReceived);
 
-            // Check for EOF marker
+            // check for the end of file
             size_t eofPos = fileData.find(eofMarker);
             if (eofPos != string::npos) {
                 outputFile.write(fileData.c_str(), eofPos); // remove end-of-file marker
                 break;
             }
 
-            // Write to file if buffer is full and EOF marker not found
+            // write to file if buffer is full and eof marker not found
             if (fileData.size() >= bufferSize) {
                 outputFile.write(fileData.c_str(), fileData.size() - eofMarker.size());
                 fileData.erase(0, fileData.size() - eofMarker.size());
@@ -167,8 +174,7 @@ public:
     }
 
     ~Client() {
-        closesocket(clientSocket);
-        WSACleanup();
+        cleanup();
     }
 
     void inputCommand() {
@@ -203,7 +209,6 @@ public:
                     sendFile(filename);
                     cout << receiveMessage() << endl;
                 }
-                
             }
 
             else if (command == "LIST" || command == "INFO" || command == "DELETE") {
@@ -213,8 +218,11 @@ public:
 
             else if (command == "GET") {
                 sendMessage(line.c_str());
-                receiveFile(filename);
-                cout << receiveMessage() << endl;
+                string response = receiveMessage();
+                if (response == "File transfer completed\n") {
+                    receiveFile(filename);
+                }
+                cout << response << endl;
             }
             else {
                 cout << "Invalid command" << endl;
@@ -223,7 +231,6 @@ public:
         else {
             cout << "Empty input\n" << endl;
         }
-        
     }
 
 };
