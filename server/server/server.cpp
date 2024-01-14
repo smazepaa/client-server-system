@@ -117,7 +117,7 @@ class Server {
         }
 
         else if (command == "DELETE") {
-
+            deleteFile(filename);
         }
 
         else {
@@ -152,7 +152,6 @@ class Server {
         cout << "Request completed" << endl;
     }
 
-
     void fileInfo(const string& filename) {
         string filePath = serverDirectory + "/" + filename;
 
@@ -164,7 +163,7 @@ class Server {
 
         auto fsize = file_size(filePath);
         auto ftime = last_write_time(filePath);
-        auto ftype = is_directory(filePath) ? "Directory" : "File";
+        auto ftype = is_directory(filePath) ? "File Folder" : "File";
 
         // Convert file_time_type to time_t
         auto sctp = chrono::time_point_cast<chrono::system_clock::duration>(
@@ -178,7 +177,7 @@ class Server {
         char timeStr[80];
         strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
 
-        string response = "File: " + filename + "\nSize: " + to_string(fsize) + " bytes\nType: "
+        string response = "Name: " + filename + "\nSize: " + to_string(fsize) + " bytes\nType: "
             + ftype + "\nLast Modified: " + timeStr;
 
         sendResponse(response.c_str());
@@ -192,6 +191,26 @@ class Server {
 
             const char* response = "Hello, client! This is the server.";
             sendResponse(response);
+        }
+    }
+
+    void deleteFile(const string& filename) {
+        string filePath = serverDirectory + "/" + filename;
+
+        if (!exists(filePath)) {
+            cout << "File does not exist: " << filePath << endl;
+            sendResponse("File does not exist.\n");
+            return;
+        }
+
+        if (remove(filePath)) {
+            cout << "File deleted successfully: " << filePath << endl;
+            sendResponse("File deleted successfully.\n");
+        }
+
+        else {
+            cout << "Failed to delete file: " << filePath << endl;
+            sendResponse("Failed to delete file.\n");
         }
     }
 

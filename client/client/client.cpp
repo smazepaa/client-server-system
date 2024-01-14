@@ -11,6 +11,7 @@
 
 using namespace std;
 namespace fs = std::filesystem;
+using namespace fs;
 
 class Client {
 
@@ -83,6 +84,29 @@ class Client {
         return totalData;
     }
 
+    void sendFile(const string& filename) {
+
+        string filePath = clientDirectory + "/" + filename;
+
+        ifstream file(filePath, ios::binary);
+        if (!file.is_open()) {
+            cout << "Failed to open file" << endl;
+            return;
+        }
+
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
+
+        while (file.read(buffer, bufferSize) || file.gcount()) {
+            send(clientSocket, buffer, file.gcount(), 0); // send content by chunks
+        }
+
+        file.close();
+
+        const char* eofMarker = "<EOF>";
+        sendMessage(eofMarker); // send end-of-file marker
+    }
+
 public:
     Client(){
         winsockInit();
@@ -118,7 +142,7 @@ public:
 
                 string filePath = clientDirectory + "/" + filename;
 
-                if (!filesystem::exists(filePath)) {
+                if (exists(filePath)) {
                     cout << "File does not exist: " << filePath << endl << endl;
                 }
                 else {
@@ -128,7 +152,8 @@ public:
                 }
                 
             }
-            else if (command == "LIST" || command == "INFO") {
+
+            else if (command == "LIST" || command == "INFO" || command == "DELETE") {
                 sendMessage(line.c_str());
                 cout << receiveMessage() << endl;
             }
@@ -139,29 +164,6 @@ public:
         
     }
 
-    void sendFile(const string& filename) {
-
-        string filePath = clientDirectory + "/" + filename;
-
-        ifstream file(filePath, ios::binary);
-        if (!file.is_open()) {
-            cout << "Failed to open file" << endl;
-            return;
-        }
-
-        const size_t bufferSize = 1024;
-        char buffer[bufferSize];
-
-        while (file.read(buffer, bufferSize) || file.gcount()) {
-            send(clientSocket, buffer, file.gcount(), 0); // send content by chunks
-        }
-
-        file.close();
-
-        const char* eofMarker = "<EOF>";
-        sendMessage(eofMarker); // send end-of-file marker
-    }
-
 };
 
 int main() {
@@ -170,11 +172,6 @@ int main() {
     while (true) {
         client.inputCommand();
     }
-    // client.sendCommand(p);
-    // client.sendMessage("Hello, server! How are you?");
-
-    /*client.sendFile("airflight-booking.pdf");
-    cout << client.receiveMessage();*/
     
     return 0;
 }
