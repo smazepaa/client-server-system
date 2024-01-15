@@ -59,7 +59,7 @@ Requests to upload a specific file from the server to the client directory.
 - **Server Responses**:
   - **File already exists: `<filepath>`** – uploading the file already present in the client directory.
   - **File does not exist `<filepath>`** – request file unavailable on the server.
-  - **Failed to receive data** – caused either by the failure of data receiving or client disconnection.
+  - **File transfer failed** – caused either by the failure of data receiving or client disconnection.
   - **File transfer completed** – file successfully transferred and saved to the client directory.
 
 - **Client Responses**:
