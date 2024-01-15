@@ -118,7 +118,7 @@ class Client {
         string outputFilePath = clientDirectory + "/" + filename;
 
         if (exists(outputFilePath)) {
-            string response = "File already exists" + outputFilePath;
+            string response = "File already exists: " + outputFilePath;
             cout << response << endl;
             sendMessage(response.c_str());
             return;
@@ -165,6 +165,8 @@ class Client {
         outputFile.close();
         const char* response = "File transfer completed";
         sendMessage(response);
+
+        cout << receiveMessage() << endl;
     }
 
 public:
@@ -201,7 +203,7 @@ public:
 
                 string filePath = clientDirectory + "/" + filename;
 
-                if (exists(filePath)) {
+                if (!exists(filePath)) {
                     cout << "File does not exist: " << filePath << endl << endl;
                 }
                 else {
@@ -218,11 +220,7 @@ public:
 
             else if (command == "GET") {
                 sendMessage(line.c_str());
-                string response = receiveMessage();
-                if (response == "File transfer completed\n") {
-                    receiveFile(filename);
-                }
-                cout << response << endl;
+                receiveFile(filename);
             }
             else {
                 cout << "Invalid command" << endl;

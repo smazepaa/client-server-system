@@ -239,7 +239,7 @@ class Server {
         // Send EOF marker directly
         const char* eofMarker = "<EOF>";
         send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
-
+        cout << receiveMessage() << endl;
         sendResponse("File transfer completed\n");
     }
 
