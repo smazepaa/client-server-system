@@ -51,17 +51,16 @@ class Client:
 
         try:
             with open(output_file_path, 'wb') as file:
-                eof_marker = "<EOF>"
-                file_data = b""
-
+                eof_marker = "<EOF>".encode()
                 while True:
                     data = self.client_socket.recv(1024)
-                    file_data += data
-
-                    if eof_marker.encode() in file_data:
-                        file_data = file_data[:file_data.find(eof_marker.encode())]  # remove EOF marker
-                        file.write(file_data)
+                    if eof_marker in data:
+                        # Split at the EOF marker, write first part, and break
+                        eof_index = data.find(eof_marker)
+                        file.write(data[:eof_index])
                         break
+                    else:
+                        file.write(data)
 
             print("File transfer completed")
             self.send_message("File transfer completed")
@@ -90,8 +89,11 @@ class Client:
                 print(self.receive_message())
             elif command == "GET":
                 self.send_message(line)
-                self.receive_file(filename)
-                print(self.receive_message())
+                server_response = self.receive_message()
+                if "File does not exist" not in server_response:
+                    self.receive_file(filename)
+                else:
+                    print(server_response)
             else:
                 print("Invalid command")
 

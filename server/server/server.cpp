@@ -112,7 +112,7 @@ class Server {
 
         else if (command == "GET") {
             sendFile(filename);
-            cout << receiveMessage() << endl;
+            //cout << receiveMessage() << endl;
         }
 
         else if (command == "PUT") {
@@ -214,12 +214,15 @@ class Server {
     void sendFile(const string& filename) {
         string filePath = serverDirectory + "/" + filename;
 
+
         // Check if the file exists
         if (!exists(filePath)) {
-            cout << "File does not exist: " << filePath << endl;
-            sendResponse("No such file on the server\n");
+            string response = "File does not exist: " + filePath;
+            cout << response << endl;
+            sendResponse(response);
             return;
         }
+
 
         ifstream file(filePath, ios::binary);
         if (!file.is_open()) {
@@ -227,6 +230,8 @@ class Server {
             sendResponse("Failed to open file\n");
             return;
         }
+
+        sendResponse("file is present");
 
         const size_t bufferSize = 1024;
         char buffer[bufferSize];
@@ -240,8 +245,9 @@ class Server {
         // Send EOF marker directly
         const char* eofMarker = "<EOF>";
         send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
-        cout << receiveMessage() << endl;
         sendResponse("File transfer completed\n");
+
+        cout << receiveMessage() << endl;
     }
 
     void receiveFile(const string& filename) {

@@ -155,9 +155,9 @@ class Client {
 
         outputFile.close();
         const char* response = "File transfer completed";
+        cout << receiveMessage() << endl;
         sendMessage(response);
 
-        cout << receiveMessage() << endl;
     }
 
 public:
@@ -210,12 +210,19 @@ public:
 
             else if (command == "LIST" || command == "INFO" || command == "DELETE") {
                 sendMessage(line.c_str());
-                cout << receiveMessage() << endl;
+                cout << receiveMessage() << endl << endl;
             }
 
             else if (command == "GET") {
                 sendMessage(line.c_str());
-                receiveFile(filename);
+                string resp = receiveMessage();
+                if (resp.find("File does not exist") == string::npos) {
+                    // Only proceed to receive file if the file exists
+                    receiveFile(filename);
+                }
+                else {
+                    cout << resp <<endl << endl;
+                }
             }
             else {
                 cout << "Invalid command" << endl;
