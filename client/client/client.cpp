@@ -51,8 +51,17 @@ class Client {
     }
 
     // commands methods
-    void sendMessage(const char* message) {
-        send(clientSocket, message, (int)strlen(message), 0);
+    void sendMessage(const string& message) {
+        string dataToSend = message + "<END>"; // end marker
+        const size_t bufferSize = 1024;
+        size_t dataLength = dataToSend.length();
+        size_t sent = 0;
+
+        while (sent < dataLength) {
+            size_t toSend = min(bufferSize, dataLength - sent);
+            send(clientSocket, dataToSend.c_str() + sent, toSend, 0);
+            sent += toSend;
+        }
     }
 
     string receiveMessage() {
@@ -111,7 +120,7 @@ class Client {
         if (exists(outputFilePath)) {
             string response = "File already exists: " + outputFilePath;
             cout << response << endl;
-            sendMessage(response.c_str());
+            sendMessage(response);
             return;
         }
 
@@ -202,19 +211,19 @@ public:
                     cout << "File does not exist: " << filePath << endl << endl;
                 }
                 else {
-                    sendMessage(line.c_str());
+                    sendMessage(line);
                     sendFile(filename);
                     cout << receiveMessage() << endl;
                 }
             }
 
             else if (command == "LIST" || command == "INFO" || command == "DELETE") {
-                sendMessage(line.c_str());
+                sendMessage(line);
                 cout << receiveMessage() << endl << endl;
             }
 
             else if (command == "GET") {
-                sendMessage(line.c_str());
+                sendMessage(line);
                 string resp = receiveMessage();
                 if (resp.find("File does not exist") == string::npos) {
                     // Only proceed to receive file if the file exists

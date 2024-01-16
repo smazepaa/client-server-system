@@ -96,13 +96,29 @@ class Server {
     }
 
     string receiveMessage() {
-        char buffer[1024]; // for storing the message from client
-        memset(buffer, 0, 1024);
-        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-        if (bytesReceived > 0) {
-            return string(buffer);
+        string totalData;
+        char buffer[1024];
+        const string endMarker = "<END>";
+        size_t found;
+
+        while (true) {
+            memset(buffer, 0, 1024);
+            int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+
+            if (bytesReceived > 0) {
+                totalData.append(buffer, bytesReceived);
+
+                found = totalData.find(endMarker);
+                if (found != string::npos) {
+                    totalData.erase(found, endMarker.length()); // remove the end marker
+                    break;
+                }
+            }
+            else {
+                break;
+            }
         }
-        return "";
+        return totalData;
     }
 
     void handleCommands(const string& command, const string& filename) {
@@ -112,7 +128,6 @@ class Server {
 
         else if (command == "GET") {
             sendFile(filename);
-            //cout << receiveMessage() << endl;
         }
 
         else if (command == "PUT") {
@@ -208,9 +223,8 @@ class Server {
         string response = "Name: " + filename + "\nSize: " + readableSize + "\nType: "
             + ftype + "\nLast Modified: " + timeStr;
 
-        sendResponse(response.c_str());
+        sendResponse(response);
     }
-
 
     void deleteFile(const string& filename) {
         string filePath = serverDirectory + "/" + filename;

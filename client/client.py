@@ -23,7 +23,15 @@ class Client:
         return self.is_connected
 
     def send_message(self, message):
-        self.client_socket.send(message.encode())
+        data_to_send = message + "<END>"  # end marker
+        buffer_size = 1024
+        total_sent = 0
+        data_length = len(data_to_send)
+
+        while total_sent < data_length:
+            to_send = data_to_send[total_sent:total_sent + buffer_size].encode()
+            total_sent += self.client_socket.send(to_send)
+
 
     def receive_message(self):
         end_marker = "<END>"
