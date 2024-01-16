@@ -9,10 +9,18 @@ class Client:
         self.server_ip = '127.0.0.1'
         self.port = 12345
         self.client_dir = 'C:/Users/sofma/client-dir'
-        self.connect_to_server()
+        self.is_connected = False
 
     def connect_to_server(self):
-        self.client_socket.connect((self.server_ip, self.port))
+        try:
+            self.client_socket.connect((self.server_ip, self.port))
+            self.is_connected = True
+        except socket.error as e:
+            print(f"Connect failed with error: {e}")
+            self.is_connected = False
+
+    def is_ready(self):
+        return self.is_connected
 
     def send_message(self, message):
         self.client_socket.send(message.encode())
@@ -103,12 +111,17 @@ class Client:
 
 def main():
     client = Client()
-    try:
-        while True:
-            client.input_command()
-    except KeyboardInterrupt:
-        print("\nClient closing.")
-        client.close()
+    client.connect_to_server()
+    if client.is_ready():
+        try:
+            while True:
+                client.input_command()
+        except KeyboardInterrupt:
+            print("\nClient closing.")
+            client.close()
+    else:
+        print("Client is not ready to connect")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
