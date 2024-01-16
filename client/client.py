@@ -1,0 +1,113 @@
+import socket
+import os
+import struct
+
+
+class Client:
+    def __init__(self):
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_ip = '127.0.0.1'
+        self.port = 12345
+        self.client_dir = 'C:/Users/sofma/client-dir'
+        self.connect_to_server()
+
+    def connect_to_server(self):
+        self.client_socket.connect((self.server_ip, self.port))
+
+    def send_message(self, message):
+        self.client_socket.send(message.encode())
+
+    def receive_message(self):
+        end_marker = "<END>"
+        total_data = []
+        while True:
+            data = self.client_socket.recv(1024).decode()
+            if end_marker in data:
+                total_data.append(data[:data.find(end_marker)])
+                break
+            total_data.append(data)
+            if not data:
+                break
+        return ''.join(total_data)
+
+    def send_file(self, file_path):
+        with open(file_path, 'rb') as file:
+            while True:
+                data = file.read(1024)  # Read in chunks of 1024 bytes
+                if not data:
+                    break
+                self.client_socket.sendall(data)
+
+        eof_marker = "<EOF>"
+        self.send_message(eof_marker)  # send end-of-file marker
+        print(self.receive_message())
+
+    def receive_file(self, filename):
+        output_file_path = os.path.join(self.client_dir, filename)
+
+        if os.path.exists(output_file_path):
+            print("File already exists:", output_file_path)
+            return
+
+        try:
+            with open(output_file_path, 'wb') as file:
+                eof_marker = "<EOF>"
+                file_data = b""
+
+                while True:
+                    data = self.client_socket.recv(1024)
+                    file_data += data
+
+                    if eof_marker.encode() in file_data:
+                        file_data = file_data[:file_data.find(eof_marker.encode())]  # remove EOF marker
+                        file.write(file_data)
+                        break
+
+            print("File transfer completed")
+            self.send_message("File transfer completed")
+        except IOError as e:
+            error_message = f"Failed to open file for writing: {e}"
+            print(error_message)
+            self.send_message(error_message)
+
+    def input_command(self):
+        line = input()
+        if line:
+            parts = line.split()
+            command = parts[0]
+            filename = parts[1] if len(parts) > 1 else ""
+
+            if command == "PUT":
+                file_path = os.path.join(self.client_dir, filename)
+                if not os.path.exists(file_path):
+                    print("File does not exist:", file_path)
+                else:
+                    self.send_message(line)
+                    self.send_file(file_path)
+                    print(self.receive_message())
+            elif command in ["LIST", "INFO", "DELETE"]:
+                self.send_message(line)
+                print(self.receive_message())
+            elif command == "GET":
+                self.send_message(line)
+                self.receive_file(filename)
+                print(self.receive_message())
+            else:
+                print("Invalid command")
+
+    def close(self):
+        self.client_socket.close()
+
+
+def main():
+    client = Client()
+    try:
+        while True:
+            client.input_command()
+    except KeyboardInterrupt:
+        print("\nClient closing.")
+        client.close()
+
+
+if __name__ == "__main__":
+    main()

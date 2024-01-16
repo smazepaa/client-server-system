@@ -316,6 +316,7 @@ public:
 
     void recieveCommands() {
         string received = receiveMessage();
+        cout << received << endl;
         if (received != "") {
 
             vector<string> params;
