@@ -20,7 +20,6 @@ class Client {
     int port = 12345;
     PCWSTR serverIp = L"127.0.0.1";
     string clientDirectory = "C:/Users/sofma/client-dir";
-    bool readyToConnect = false;
 
     //setup methods
     void clientConfig() {
@@ -168,7 +167,6 @@ public:
         }
         else {
             clientConfig();
-            this->readyToConnect = true;
         }
     }
 
@@ -237,7 +235,7 @@ public:
     }
 
     bool isReady() const {
-        return this->readyToConnect;
+        return clientSocket != INVALID_SOCKET;;
     }
 };
 

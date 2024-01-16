@@ -37,13 +37,14 @@ class Server {
         serverAddr.sin_port = htons(port);
     }
 
-    void winsockInit() {
+    bool winsockInit() {
         // Initialize Winsock
         WSADATA wsaData;
         if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
             cerr << "WSAStartup failed" << endl;
-            return;
+            return false;
         }
+        return true;
     }
 
     void bindSocket() {
@@ -301,11 +302,12 @@ class Server {
 
 public:
     Server(){
-        winsockInit();
-        serverConfig();
-        bindSocket();
-        listenForConnections();
-        acceptClient();
+        if (!winsockInit()) {
+            throw runtime_error("Winsock initialization failed");
+        }
+        else {
+            serverConfig();
+        }
     }
 
     ~Server() {
@@ -334,14 +336,37 @@ public:
             handleCommands(command, filename);
         }
     }
+
+    void setupServer() {
+        serverConfig();
+        bindSocket();
+        listenForConnections();
+        acceptClient();
+    }
+
+    bool isReady() const {
+        return serverSocket != INVALID_SOCKET;
+    }
 };
 
 int main() {
-    
-    Server server;
-    while (true) {
-        server.recieveCommands();
+    try {
+        Server server;
+        if (server.isReady()) {
+            server.setupServer();
+            while (true) {
+                server.recieveCommands();
+            }
+        }
+        else {
+            throw runtime_error("Server is not ready for setup");
+        }
+    }
+    catch (const runtime_error& e) {
+        cerr << "Error: " << e.what() << endl;
+        return 1;
     }
 
     return 0;
 }
+
