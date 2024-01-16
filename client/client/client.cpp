@@ -20,6 +20,7 @@ class Client {
     int port = 12345;
     PCWSTR serverIp = L"127.0.0.1";
     string clientDirectory = "C:/Users/sofma/client-dir";
+    bool readyToConnect = false;
 
     //setup methods
     void clientConfig() {
@@ -35,23 +36,14 @@ class Client {
         InetPton(AF_INET, serverIp, &serverAddr.sin_addr);
     }
 
-    void connectToServer() {
-        
-        clientConfig();
-
-        if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
-            cerr << "Connect failed with error: " << WSAGetLastError() << endl;
-            return;
-        }
-    }
-
-    void winsockInit() {
+    bool winsockInit() {
         // Initialize Winsock
         WSADATA wsaData;
         if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
             cerr << "WSAStartup failed" << endl;
-            return;
+            return false;
         }
+        return true;
     }
 
     void cleanup() {
@@ -170,9 +162,14 @@ class Client {
     }
 
 public:
-    Client(){
-        winsockInit();
-        connectToServer();
+    Client() {
+        if (!winsockInit()) {
+            throw runtime_error("Winsock initialization failed");
+        }
+        else {
+            clientConfig();
+            this->readyToConnect = true;
+        }
     }
 
     ~Client() {
@@ -231,14 +228,37 @@ public:
         }
     }
 
+    void connectToServer() {
+
+        if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
+            cerr << "Connect failed with error: " << WSAGetLastError() << endl;
+            return;
+        }
+    }
+
+    bool isReady() const {
+        return this->readyToConnect;
+    }
 };
 
 int main() {
-
-    Client client;
-    while (true) {
-        client.inputCommand();
+    try {
+        Client client;
+        if (client.isReady()) {
+            client.connectToServer();
+            while (true) {
+                client.inputCommand();
+            }
+        }
+        else {
+            throw runtime_error("Client is not ready to connect");
+        }
     }
-    
+    catch (const runtime_error& e) {
+        cerr << "Error: " << e.what() << endl;
+        return 1;
+    }
+
     return 0;
 }
+

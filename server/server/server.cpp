@@ -334,7 +334,6 @@ public:
             handleCommands(command, filename);
         }
     }
-
 };
 
 int main() {
