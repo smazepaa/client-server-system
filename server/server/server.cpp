@@ -168,27 +168,49 @@ class Server {
             return;
         }
 
-        auto fsize = file_size(filePath);
-        auto ftime = last_write_time(filePath);
         auto ftype = is_directory(filePath) ? "File Folder" : "File";
+        size_t totalSize = 0;
 
-        // Convert file_time_type to time_t
+        if (ftype == "File Folder") {
+            for (const auto& entry : recursive_directory_iterator(filePath)) {
+                if (!is_directory(entry)) {
+                    totalSize += file_size(entry.path());
+                }
+            }
+        }
+        else {
+            totalSize = file_size(filePath);
+        }
+
+        // Convert size to human-readable format
+        string readableSize;
+        if (totalSize < 1024) {
+            readableSize = to_string(totalSize) + " bytes";
+        }
+        else if (totalSize < 1024 * 1024) {
+            readableSize = to_string(totalSize / 1024) + " KB";
+        }
+        else if (totalSize < 1024 * 1024 * 1024) {
+            readableSize = to_string(totalSize / (1024 * 1024)) + " MB";
+        }
+        else {
+            readableSize = to_string(totalSize / (1024 * 1024 * 1024)) + " GB";
+        }
+
+        auto ftime = last_write_time(filePath);
         auto sctp = chrono::time_point_cast<chrono::system_clock::duration>(
             ftime - file_time_type::clock::now() + chrono::system_clock::now());
         time_t cftime = chrono::system_clock::to_time_t(sctp);
-
-        // Convert time_t to tm for formatting
         tm* timeinfo = localtime(&cftime);
-
-        // Format the time to a string
         char timeStr[80];
         strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
 
-        string response = "Name: " + filename + "\nSize: " + to_string(fsize) + " bytes\nType: "
+        string response = "Name: " + filename + "\nSize: " + readableSize + "\nType: "
             + ftype + "\nLast Modified: " + timeStr;
 
         sendResponse(response.c_str());
     }
+
 
     void deleteFile(const string& filename) {
         string filePath = serverDirectory + "/" + filename;
