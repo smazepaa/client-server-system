@@ -15,15 +15,21 @@ using namespace std;
 namespace fs = std::filesystem;
 using namespace fs;
 
-class Server {
+class ConnectionHandler {
 
     SOCKET serverSocket;
-    SOCKET clientSocket;
     sockaddr_in serverAddr;
     int port = 12345;
-    string serverDirectory = "C:/Users/sofma/server-dir";
 
-    // methods for setting up the connection
+    bool winsockInit() {
+        WSADATA wsaData;
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+            cerr << "WSAStartup failed" << endl;
+            return false;
+        }
+        return true;
+    }
+
     void serverConfig() {
         serverSocket = socket(AF_INET, SOCK_STREAM, 0);
         if (serverSocket == INVALID_SOCKET)
@@ -35,16 +41,9 @@ class Server {
         serverAddr.sin_family = AF_INET;
         serverAddr.sin_addr.s_addr = INADDR_ANY;
         serverAddr.sin_port = htons(port);
-    }
 
-    bool winsockInit() {
-        // Initialize Winsock
-        WSADATA wsaData;
-        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-            cerr << "WSAStartup failed" << endl;
-            return false;
-        }
-        return true;
+        bindSocket();
+        listenForConnections();
     }
 
     void bindSocket() {
@@ -66,22 +65,45 @@ class Server {
         cout << "Server listening on port " << port << endl;
     }
 
-    void acceptClient() {
-        clientSocket = accept(serverSocket, nullptr, nullptr);
-        if (clientSocket == INVALID_SOCKET) {
-            cerr << "Accept failed with error: " << WSAGetLastError() << endl;
-            closesocket(serverSocket);
-            WSACleanup();
-            return;
-        }
-    }
-
     void cleanup() {
         closesocket(serverSocket);
         WSACleanup();
     }
 
-    // commands methods
+public:
+    ConnectionHandler() {
+        if (!winsockInit()) {
+            throw runtime_error("Winsock initialization failed");
+        }
+        else {
+            serverConfig();
+        }
+    }
+
+    ~ConnectionHandler() {
+        cleanup();
+    }
+
+    bool isReady() const {
+        return serverSocket != INVALID_SOCKET;
+    }
+
+    SOCKET acceptClient() {
+        SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
+        if (clientSocket == INVALID_SOCKET) {
+            cerr << "Accept failed with error: " << WSAGetLastError() << endl;
+            return INVALID_SOCKET;
+        }
+        return clientSocket;
+    }
+
+};
+
+class CommandHandler {
+
+    SOCKET clientSocket;
+    string serverDirectory = "C:/Users/sofma/server-dir";
+
     void sendResponse(const string& response) {
         string dataToSend = response + "<END>"; // end marker
         const size_t bufferSize = 1024;
@@ -250,15 +272,12 @@ class Server {
     void sendFile(const string& filename) {
         string filePath = serverDirectory + "/" + filename;
 
-
-        // Check if the file exists
         if (!exists(filePath)) {
             string response = "File does not exist: " + filePath;
             cout << response << endl;
             sendResponse(response);
             return;
         }
-
 
         ifstream file(filePath, ios::binary);
         if (!file.is_open()) {
@@ -278,7 +297,6 @@ class Server {
 
         file.close();
 
-        // Send EOF marker directly
         const char* eofMarker = "<EOF>";
         send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
         sendResponse("File transfer completed\n");
@@ -343,18 +361,10 @@ class Server {
     }
 
 public:
-    Server(){
-        if (!winsockInit()) {
-            throw runtime_error("Winsock initialization failed");
-        }
-        else {
-            serverConfig();
-        }
-    }
 
-    ~Server() {
-        cleanup();
-    }
+    CommandHandler() : clientSocket(INVALID_SOCKET){}
+
+    CommandHandler(SOCKET client) : clientSocket(client) {}
 
     void recieveCommands() {
         string received = receiveMessage();
@@ -380,36 +390,40 @@ public:
         }
     }
 
-    void setupServer() {
-        serverConfig();
-        bindSocket();
-        listenForConnections();
-        acceptClient();
+    bool isReady() {
+        return this->clientSocket != INVALID_SOCKET;
+    }
+};
+
+class Server {
+    ConnectionHandler connHandler;
+    CommandHandler cmdHandler;
+
+public:
+    Server() : connHandler(), cmdHandler() {
+        if (connHandler.isReady()) {
+            SOCKET clientSocket = connHandler.acceptClient();
+            cmdHandler = CommandHandler(clientSocket);
+        }
     }
 
-    bool isReady() const {
-        return serverSocket != INVALID_SOCKET;
+    void receiveCommands() {
+        if (cmdHandler.isReady()) {
+            cmdHandler.recieveCommands();
+        }
     }
 };
 
 int main() {
     try {
         Server server;
-        if (server.isReady()) {
-            server.setupServer();
-            while (true) {
-                server.recieveCommands();
-            }
-        }
-        else {
-            throw runtime_error("Server is not ready for setup");
+        while (true) {
+            server.receiveCommands();
         }
     }
     catch (const runtime_error& e) {
         cerr << "Error: " << e.what() << endl;
         return 1;
     }
-
     return 0;
 }
-
