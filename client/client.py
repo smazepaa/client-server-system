@@ -15,6 +15,10 @@ class Client:
         try:
             self.client_socket.connect((self.server_ip, self.port))
             self.is_connected = True
+
+            client_name = input("Enter client name: ")
+            self.send_message(client_name)
+
         except socket.error as e:
             print(f"Connect failed with error: {e}")
             self.is_connected = False
@@ -129,7 +133,6 @@ def main():
             client.close()
     else:
         print("Client is not ready to connect")
-        sys.exit(1)
 
 
 if __name__ == "__main__":

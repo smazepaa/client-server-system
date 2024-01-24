@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <thread>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -102,7 +103,9 @@ public:
 class CommandHandler {
 
     SOCKET clientSocket;
-    string serverDirectory = "C:/Users/sofma/server-dir";
+    string serverDirectory;
+    string baseDirectory = "C:/Users/sofma/server-dir/";
+    string clientName;
 
     void sendResponse(const string& response) {
         string dataToSend = response + "<END>"; // end marker
@@ -186,7 +189,7 @@ class CommandHandler {
         string fileList = "Files in directory: " + serverDirectory + "\n";
 
         if (fs::is_empty(serverDirectory)) {
-            fileList = "Server directory is empty.\n";
+            fileList = serverDirectory + " is empty.\n";
         }
         else {
             listDirectory(serverDirectory, fileList);
@@ -364,11 +367,21 @@ public:
 
     CommandHandler() : clientSocket(INVALID_SOCKET){}
 
-    CommandHandler(SOCKET& client) : clientSocket(client) {}
+    CommandHandler(SOCKET& client) : clientSocket(client){
+        clientName = receiveMessage();
+        serverDirectory = baseDirectory + clientName;
 
-    void recieveCommands() {
+        cout << "Accepted connection from " << clientName << endl;
+        cout << "Working directory: " << serverDirectory << endl << endl;
+
+        if (!fs::exists(serverDirectory)) {
+            create_directory(serverDirectory);
+        }
+    }
+
+    void receiveCommands() {
         string received = receiveMessage();
-        cout << received << endl;
+        cout << clientName << " - s" << received << endl;
         if (received != "") {
 
             vector<string> params;
@@ -397,36 +410,54 @@ public:
 
 class Server {
     ConnectionManager connManager;
+    vector<thread> clientThreads;
     CommandHandler cmdHandler;
 
-public:
-    Server() {
-        if (connManager.isReady()) {
-            SOCKET clientSocket = connManager.acceptClient();
-            cmdHandler = CommandHandler(clientSocket);
-        }
-        else {
-            throw runtime_error("Server is not ready for connections");
+    void handleClient(SOCKET clientSocket) {
+
+        CommandHandler cmdHandler(clientSocket);
+        while (cmdHandler.isReady()) {
+            cmdHandler.receiveCommands();
         }
     }
 
-    void receiveCommands() {
-        if (cmdHandler.isReady()) {
-            cmdHandler.recieveCommands();
+public:
+
+    ~Server() {
+        for (auto& t : clientThreads) {
+            if (t.joinable()) {
+                t.join();
+            }
         }
     }
+
+    void start() {
+        while (true) {
+            std::cout << "Waiting for a new client..." << std::endl;
+            SOCKET clientSocket = connManager.acceptClient();
+            if (clientSocket != INVALID_SOCKET) {
+                // Use a lambda to call the member function
+                clientThreads.emplace_back([this, clientSocket]() {
+                    this->handleClient(clientSocket);
+                });
+            }
+            else {
+                std::cerr << "Failed to accept a client." << std::endl;
+            }
+        }
+    }
+
 };
 
 int main() {
     try {
         Server server;
-        while (true) {
-            server.receiveCommands();
-        }
+        server.start();  // Start the server to accept and handle connections
     }
     catch (const runtime_error& e) {
-        cerr << "Error: " << e.what() << endl;
+        cerr << "Server Error: " << e.what() << endl;
         return 1;
     }
     return 0;
 }
+

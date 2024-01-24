@@ -206,6 +206,11 @@ public:
 
     CommandHandler(SOCKET socket) : clientSocket(socket){}
 
+    ~CommandHandler(){
+        closesocket(clientSocket);
+        WSACleanup();
+    }
+
     void inputCommand() {
         vector<string> inputParams;
 
@@ -268,6 +273,23 @@ public:
     bool isReady() const {
         return clientSocket != INVALID_SOCKET;
     }
+
+    void sendClientName() {
+        string name;
+        while (name == "") {
+            cout << "Enter client name: ";
+            getline(cin, name);
+            if (name != "") {
+                cout << "Client name accepted: " << name << endl << endl;
+                sendMessage(name);
+                cout << "Enter commands: " << endl;
+            }
+            else {
+                cout << "Cannot proceed with empty client name" << endl;
+            }
+        }
+
+    }
 };
 
 class Client {
@@ -279,11 +301,13 @@ public:
         cmdHandler(move(connManager.getClientSocket())) {
         if (connManager.isReady()) {
             connManager.connectToServer();
+            cmdHandler.sendClientName();
         }
         else {
             throw runtime_error("Client is not ready for connections");
         }
     }
+
 
     void processCommands() {
         if (cmdHandler.isReady()) {
