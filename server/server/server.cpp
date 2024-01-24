@@ -15,7 +15,7 @@ using namespace std;
 namespace fs = std::filesystem;
 using namespace fs;
 
-class ConnectionHandler {
+class ConnectionManager {
 
     SOCKET serverSocket;
     sockaddr_in serverAddr;
@@ -62,7 +62,7 @@ class ConnectionHandler {
             WSACleanup();
             return;
         }
-        cout << "Server listening on port " << port << endl;
+        cout << "Server listening on port " << port << endl << endl;
     }
 
     void cleanup() {
@@ -71,7 +71,7 @@ class ConnectionHandler {
     }
 
 public:
-    ConnectionHandler() {
+    ConnectionManager() {
         if (!winsockInit()) {
             throw runtime_error("Winsock initialization failed");
         }
@@ -80,7 +80,7 @@ public:
         }
     }
 
-    ~ConnectionHandler() {
+    ~ConnectionManager() {
         cleanup();
     }
 
@@ -364,7 +364,7 @@ public:
 
     CommandHandler() : clientSocket(INVALID_SOCKET){}
 
-    CommandHandler(SOCKET client) : clientSocket(client) {}
+    CommandHandler(SOCKET& client) : clientSocket(client) {}
 
     void recieveCommands() {
         string received = receiveMessage();
@@ -396,14 +396,17 @@ public:
 };
 
 class Server {
-    ConnectionHandler connHandler;
+    ConnectionManager connManager;
     CommandHandler cmdHandler;
 
 public:
-    Server() : connHandler(), cmdHandler() {
-        if (connHandler.isReady()) {
-            SOCKET clientSocket = connHandler.acceptClient();
+    Server() {
+        if (connManager.isReady()) {
+            SOCKET clientSocket = connManager.acceptClient();
             cmdHandler = CommandHandler(clientSocket);
+        }
+        else {
+            throw runtime_error("Server is not ready for connections");
         }
     }
 

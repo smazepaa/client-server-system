@@ -13,15 +13,13 @@ using namespace std;
 namespace fs = std::filesystem;
 using namespace fs;
 
-class Client {
+class ConnectionManager {
 
     SOCKET clientSocket;
     sockaddr_in serverAddr;
     int port = 12345;
     PCWSTR serverIp = L"127.0.0.1";
-    string clientDirectory = "C:/Users/sofma/client-dir";
 
-    //setup methods
     void clientConfig() {
         clientSocket = socket(AF_INET, SOCK_STREAM, 0);
         if (clientSocket == INVALID_SOCKET) {
@@ -36,7 +34,6 @@ class Client {
     }
 
     bool winsockInit() {
-        // Initialize Winsock
         WSADATA wsaData;
         if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
             cerr << "WSAStartup failed" << endl;
@@ -50,7 +47,43 @@ class Client {
         WSACleanup();
     }
 
-    // commands methods
+public:
+
+    ConnectionManager(){
+        if (!winsockInit()) {
+            throw runtime_error("Winsock initialization failed");
+        }
+        else {
+            clientConfig();
+        }
+    }
+
+    ~ConnectionManager() {
+        cleanup();
+    }
+
+    SOCKET getClientSocket() const {
+        return this->clientSocket;
+    }
+
+    bool isReady() const {
+        return clientSocket != INVALID_SOCKET;
+    }
+
+    void connectToServer() {
+        if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
+            cerr << "Connect failed with error: " << WSAGetLastError() << endl;
+            return;
+        }
+        cout << "Client connected to server" << endl << endl;
+    }
+};
+
+class CommandHandler {
+
+    SOCKET clientSocket;
+    string clientDirectory = "C:/Users/sofma/client-dir";
+
     void sendMessage(const string& message) {
         string dataToSend = message + "<END>"; // end marker
         const size_t bufferSize = 1024;
@@ -170,18 +203,8 @@ class Client {
     }
 
 public:
-    Client() {
-        if (!winsockInit()) {
-            throw runtime_error("Winsock initialization failed");
-        }
-        else {
-            clientConfig();
-        }
-    }
 
-    ~Client() {
-        cleanup();
-    }
+    CommandHandler(SOCKET socket) : clientSocket(socket){}
 
     void inputCommand() {
         vector<string> inputParams;
@@ -196,7 +219,7 @@ public:
             while (iss >> word) {
                 inputParams.push_back(word);
             }
-            
+
             string command = inputParams[0];
             string filename;
             if (inputParams.size() == 2) {
@@ -230,7 +253,7 @@ public:
                     receiveFile(filename);
                 }
                 else {
-                    cout << resp <<endl << endl;
+                    cout << resp << endl << endl;
                 }
             }
             else {
@@ -242,37 +265,43 @@ public:
         }
     }
 
-    void connectToServer() {
+    bool isReady() const {
+        return clientSocket != INVALID_SOCKET;
+    }
+};
 
-        if (connect(clientSocket, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == SOCKET_ERROR) {
-            cerr << "Connect failed with error: " << WSAGetLastError() << endl;
-            return;
+class Client {
+    ConnectionManager connManager;
+    CommandHandler cmdHandler;
+
+public:
+    Client() : connManager(),
+        cmdHandler(move(connManager.getClientSocket())) {
+        if (connManager.isReady()) {
+            connManager.connectToServer();
+        }
+        else {
+            throw runtime_error("Client is not ready for connections");
         }
     }
 
-    bool isReady() const {
-        return clientSocket != INVALID_SOCKET;;
+    void processCommands() {
+        if (cmdHandler.isReady()) {
+            cmdHandler.inputCommand();
+        }
     }
 };
 
 int main() {
     try {
         Client client;
-        if (client.isReady()) {
-            client.connectToServer();
-            while (true) {
-                client.inputCommand();
-            }
-        }
-        else {
-            throw runtime_error("Client is not ready to connect");
+        while (true) {
+            client.processCommands();
         }
     }
     catch (const runtime_error& e) {
         cerr << "Error: " << e.what() << endl;
         return 1;
     }
-
     return 0;
 }
-
