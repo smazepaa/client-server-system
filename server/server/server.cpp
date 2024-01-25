@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
+#include "NetworkUtils.h"
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -107,43 +108,6 @@ class CommandHandler {
     string baseDirectory = "C:/Users/sofma/server-dir/";
     string clientName;
 
-    void sendResponse(const string& response) {
-        string dataToSend = response + "<END>"; // end marker
-        const size_t bufferSize = 1024;
-        size_t dataLength = dataToSend.length();
-        size_t sent = 0;
-
-        while (sent < dataLength) {
-            size_t toSend = min(bufferSize, dataLength - sent);
-            send(clientSocket, dataToSend.c_str() + sent, toSend, 0);
-            sent += toSend;
-        }
-    }
-
-    string receiveMessage() {
-        string totalData;
-        char buffer[1024];
-        const string endMarker = "<END>";
-
-        while (true) {
-            memset(buffer, 0, 1024);
-            int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-
-            if (bytesReceived > 0) {
-                totalData.append(buffer, bytesReceived);
-                size_t found = totalData.find(endMarker);
-                if (found != string::npos) {
-                    totalData.erase(found, endMarker.length());
-                    break;
-                }
-            }
-            else {
-                return "";
-            }
-        }
-        return totalData;
-    }
-
     void handleCommands(const string& command, const string& filename) {
         if (command == "LIST") {
             listFiles();
@@ -193,7 +157,7 @@ class CommandHandler {
             listDirectory(serverDirectory, fileList);
         }
 
-        sendResponse(fileList.c_str());
+        NetworkUtils::sendMessage(clientSocket, fileList.c_str());
         cout << clientName << " <- " << "List sent to the client" << endl;
     }
 
@@ -202,7 +166,7 @@ class CommandHandler {
 
         if (!exists(filePath)) {
             cout << clientName << " <- " << "File does not exist: " << filePath << endl;
-            sendResponse("File does not exist \n");
+            NetworkUtils::sendMessage(clientSocket, "File does not exist \n");
             return;
         }
 
@@ -246,7 +210,7 @@ class CommandHandler {
         string response = "Name: " + filename + "\nSize: " + readableSize + "\nType: "
             + ftype + "\nLast Modified: " + timeStr;
 
-        sendResponse(response);
+        NetworkUtils::sendMessage(clientSocket, response);
         cout << clientName << " <- " << "Information sent to the client." << endl;
     }
 
@@ -256,18 +220,18 @@ class CommandHandler {
 
         if (!exists(filePath)) {
             cout << clientName << " <- " << fileType << " does not exist: " << filePath << endl;
-            sendResponse(fileType + " does not exist on the server.\n");
+            NetworkUtils::sendMessage(clientSocket, fileType + " does not exist on the server.\n");
             return;
         }
 
         if (remove(filePath)) {
             cout << clientName << " <- " << fileType << " was successfully deleted." << endl;
-            sendResponse(fileType + " was successfully deleted.\n");
+            NetworkUtils::sendMessage(clientSocket, fileType + " was successfully deleted.\n");
         }
 
         else {
             cout << clientName << " <- " << "Failed to delete: " << filePath << endl;
-            sendResponse("Failed to delete " + filename);
+            NetworkUtils::sendMessage(clientSocket, "Failed to delete " + filename);
         }
     }
 
@@ -277,18 +241,18 @@ class CommandHandler {
         if (!exists(filePath)) {
             string response = "File does not exist: " + filePath;
             cout << clientName << " <- " << response << endl;
-            sendResponse(response);
+            NetworkUtils::sendMessage(clientSocket, response);
             return;
         }
 
         ifstream file(filePath, ios::binary);
         if (!file.is_open()) {
             cout << clientName << " <- " << "Failed to open file" << endl;
-            sendResponse("Failed to open file\n");
+            NetworkUtils::sendMessage(clientSocket, "Failed to open file\n");
             return;
         }
 
-        sendResponse("file is present");
+        NetworkUtils::sendMessage(clientSocket, "File is present");
 
         const size_t bufferSize = 1024;
         char buffer[bufferSize];
@@ -301,9 +265,9 @@ class CommandHandler {
 
         const char* eofMarker = "<EOF>";
         send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
-        sendResponse("File transfer completed\n");
+        NetworkUtils::sendMessage(clientSocket, "File transfer completed\n");
 
-        cout << clientName << " -> " << receiveMessage() << endl;
+        cout << clientName << " -> " << NetworkUtils::receiveMessage(clientSocket) << endl;
     }
 
     void receiveFile(const string& filename) {
@@ -313,7 +277,7 @@ class CommandHandler {
         if (exists(outputFilePath)) {
             string response = "File already exists: " + outputFilePath;
             cout << clientName << " <- " << response << endl;
-            sendResponse(response);
+            NetworkUtils::sendMessage(clientSocket, response);
             return;
         }
 
@@ -321,7 +285,7 @@ class CommandHandler {
         if (!outputFile.is_open()) {
             string response = "Failed to open file for writing: " + outputFilePath;
             cout << clientName << " <- " << response << endl;
-            sendResponse(response);
+            NetworkUtils::sendMessage(clientSocket, response);
             return;
         }
 
@@ -337,7 +301,7 @@ class CommandHandler {
             if (bytesReceived <= 0) {
                 cout << clientName << " <- " << "Failed to receive data or connection closed by client." << endl;
                 const char* response = "File transfer failed";
-                sendResponse(response);
+                NetworkUtils::sendMessage(clientSocket, response);
                 break;
             }
 
@@ -359,7 +323,7 @@ class CommandHandler {
         outputFile.close();
         cout << clientName << " <- " << "File transfer completed and saved to: " << outputFilePath << endl;
         const char* response = "File transfer completed";
-        sendResponse(response);
+        NetworkUtils::sendMessage(clientSocket, response);
     }
 
 public:
@@ -367,7 +331,7 @@ public:
     CommandHandler() : clientSocket(INVALID_SOCKET){}
 
     CommandHandler(SOCKET& client) : clientSocket(client){
-        clientName = receiveMessage();
+        clientName = NetworkUtils::receiveMessage(clientSocket);
         serverDirectory = baseDirectory + clientName;
 
         cout << "Accepted connection from " << clientName << endl;
@@ -379,7 +343,7 @@ public:
     }
 
     void receiveCommands() {
-        string received = receiveMessage();
+        string received = NetworkUtils::receiveMessage(clientSocket);
         if (received.empty()) {
             cout << clientName << " disconnected." << endl;
             closesocket(clientSocket);
@@ -432,7 +396,7 @@ public:
 
     void start() {
         while (true) {
-            std::cout << "Waiting for a new client..." << std::endl;
+            cout << "Waiting for a new client..." << endl;
             SOCKET clientSocket = connManager.acceptClient();
             if (clientSocket != INVALID_SOCKET) {
                 // Use a lambda to call the member function
@@ -441,7 +405,7 @@ public:
                 });
             }
             else {
-                std::cerr << "Failed to accept a client." << std::endl;
+                cerr << "Failed to accept a client." << endl;
             }
         }
     }

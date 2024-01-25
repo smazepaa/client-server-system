@@ -6,6 +6,7 @@
 #include <string>
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
+#include "NetworkUtils.h"
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -85,49 +86,6 @@ class CommandHandler {
     string baseDirectory = "C:/Users/sofma/client-dir/";
     string clientDirectory;
 
-    void sendMessage(const string& message) {
-        string dataToSend = message + "<END>"; // end marker
-        const size_t bufferSize = 1024;
-        size_t dataLength = dataToSend.length();
-        size_t sent = 0;
-
-        while (sent < dataLength) {
-            size_t toSend = min(bufferSize, dataLength - sent);
-            int bytesSent = send(clientSocket, dataToSend.c_str() + sent, toSend, 0);
-            if (bytesSent == SOCKET_ERROR) {
-                cerr << "Failed to send data: " << WSAGetLastError() << endl;
-                return;
-            }
-            sent += bytesSent;
-        }
-    }
-
-    string receiveMessage() {
-        string totalData;
-        char buffer[1024];
-        const string endMarker = "<END>";
-        size_t found;
-
-        while (true) {
-            memset(buffer, 0, 1024);
-            int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-
-            if (bytesReceived > 0) {
-                totalData.append(buffer, bytesReceived);
-
-                found = totalData.find(endMarker);
-                if (found != string::npos) {
-                    totalData.erase(found, endMarker.length()); // remove the end marker
-                    break;
-                }
-            }
-            else {
-                break;
-            }
-        }
-        return totalData;
-    }
-
     void sendFile(const string& filename) {
 
         string filePath = clientDirectory + "/" + filename;
@@ -148,7 +106,7 @@ class CommandHandler {
         file.close();
 
         const char* eofMarker = "<EOF>";
-        sendMessage(eofMarker); // send end-of-file marker
+        NetworkUtils::sendMessage(clientSocket, eofMarker); // send end-of-file marker
     }
 
     void receiveFile(const string& filename) {
@@ -158,7 +116,7 @@ class CommandHandler {
         if (exists(outputFilePath)) {
             string response = "File already exists: " + outputFilePath;
             cout << response << endl;
-            sendMessage(response);
+            NetworkUtils::sendMessage(clientSocket, response);
             return;
         }
 
@@ -180,7 +138,7 @@ class CommandHandler {
             if (bytesReceived <= 0) {
                 const char* response = "File transfer failed";
                 cout << response << endl;
-                sendMessage(response);
+                NetworkUtils::sendMessage(clientSocket, response);
                 return;
             }
 
@@ -202,9 +160,8 @@ class CommandHandler {
 
         outputFile.close();
         const char* response = "File transfer completed";
-        cout << receiveMessage() << endl;
-        sendMessage(response);
-
+        cout << NetworkUtils::receiveMessage(clientSocket) << endl;
+        NetworkUtils::sendMessage(clientSocket, response);
     }
 
 public:
@@ -244,20 +201,20 @@ public:
                     cout << "File does not exist: " << filePath << endl << endl;
                 }
                 else {
-                    sendMessage(line);
+                    NetworkUtils::sendMessage(clientSocket, line);
                     sendFile(filename);
-                    cout << receiveMessage() << endl;
+                    cout << NetworkUtils::receiveMessage(clientSocket) << endl;
                 }
             }
 
             else if (command == "LIST" || command == "INFO" || command == "DELETE") {
-                sendMessage(line);
-                cout << receiveMessage() << endl << endl;
+                NetworkUtils::sendMessage(clientSocket, line);
+                cout << NetworkUtils::receiveMessage(clientSocket) << endl << endl;
             }
 
             else if (command == "GET") {
-                sendMessage(line);
-                string resp = receiveMessage();
+                NetworkUtils::sendMessage(clientSocket, line);
+                string resp = NetworkUtils::receiveMessage(clientSocket);
                 if (resp.find("File does not exist") == string::npos) {
                     // Only proceed to receive file if the file exists
                     receiveFile(filename);
@@ -286,7 +243,7 @@ public:
             getline(cin, name);
             if (name != "") {
                 cout << "Client name accepted: " << name << endl << endl;
-                sendMessage(name);
+                NetworkUtils::sendMessage(clientSocket, name);
 
                 clientDirectory = baseDirectory + name;
                 if (!fs::exists(clientDirectory)) {
