@@ -303,7 +303,6 @@ class CommandHandler {
         send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
         sendResponse("File transfer completed\n");
 
-        cout << clientName << " <- " << "File transfer completed" << endl;
         cout << clientName << " -> " << receiveMessage() << endl;
     }
 

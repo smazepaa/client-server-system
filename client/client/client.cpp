@@ -82,7 +82,8 @@ public:
 class CommandHandler {
 
     SOCKET clientSocket;
-    string clientDirectory = "C:/Users/sofma/client-dir";
+    string baseDirectory = "C:/Users/sofma/client-dir/";
+    string clientDirectory;
 
     void sendMessage(const string& message) {
         string dataToSend = message + "<END>"; // end marker
@@ -100,7 +101,6 @@ class CommandHandler {
             sent += bytesSent;
         }
     }
-
 
     string receiveMessage() {
         string totalData;
@@ -287,6 +287,12 @@ public:
             if (name != "") {
                 cout << "Client name accepted: " << name << endl << endl;
                 sendMessage(name);
+
+                clientDirectory = baseDirectory + name;
+                if (!fs::exists(clientDirectory)) {
+                    create_directory(clientDirectory);
+                }
+
                 cout << "Enter commands: " << endl;
             }
             else {
