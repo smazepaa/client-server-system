@@ -109,60 +109,24 @@ class CommandHandler {
         NetworkUtils::sendMessage(clientSocket, eofMarker); // send end-of-file marker
     }
 
-    void receiveFile(const string& filename) {
-        string outputFilePath = clientDirectory + "/" + filename;
+    void getFile(const string& line, const string& filename) {
+        NetworkUtils::sendMessage(clientSocket, line);
+        string resp = NetworkUtils::receiveMessage(clientSocket);
 
-        if (exists(outputFilePath)) {
-            string response = "File already exists: " + outputFilePath;
+        if (resp.find("File does not exist") == string::npos) {
+
+            // Only proceed to receive file if the file exists
+            string outputPath = clientDirectory + "/" + filename;
+
+            string response = NetworkUtils::receiveFile(outputPath, clientSocket);
             cout << response << endl;
+
             NetworkUtils::sendMessage(clientSocket, response);
-            return;
         }
-
-        ofstream outputFile(outputFilePath, ios::binary);
-        if (!outputFile.is_open()) {
-            cout << "Failed to open file for writing: " << outputFilePath << endl;
-            return;
+        else {
+            cout << resp << endl << endl;
         }
-
-        const size_t bufferSize = 1024;
-        char buffer[bufferSize];
-        string eofMarker = "<EOF>";
-        bool eofFound = false;
-
-        while (!eofFound) {
-            memset(buffer, 0, bufferSize);
-            int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
-
-            if (bytesReceived <= 0) {
-                const char* response = "File transfer failed";
-                cout << response << endl;
-                NetworkUtils::sendMessage(clientSocket, response);
-                return;
-            }
-
-            // Check for EOF marker and write only up to the marker
-            for (int i = 0; i < bytesReceived; ++i) {
-                if (string(&buffer[i], &buffer[min(i + eofMarker.length(), static_cast<size_t>(bytesReceived))]) == eofMarker) {
-                    // Write data up to the EOF marker
-                    outputFile.write(buffer, i);
-                    eofFound = true;
-                    break;
-                }
-            }
-
-            if (!eofFound) {
-                // Write the entire buffer to file as EOF marker not found
-                outputFile.write(buffer, bytesReceived);
-            }
-        }
-
-        outputFile.close();
-        const char* response = "File transfer completed";
-        NetworkUtils::sendMessage(clientSocket, response);
-        cout << response << endl << endl;
     }
-
 
 public:
 
@@ -203,7 +167,7 @@ public:
                 else {
                     NetworkUtils::sendMessage(clientSocket, line);
                     sendFile(filename);
-                    cout << NetworkUtils::receiveMessage(clientSocket) << endl;
+                    cout << NetworkUtils::receiveMessage(clientSocket) << endl << endl;
                 }
             }
 
@@ -213,22 +177,15 @@ public:
             }
 
             else if (command == "GET") {
-                NetworkUtils::sendMessage(clientSocket, line);
-                string resp = NetworkUtils::receiveMessage(clientSocket);
-                if (resp.find("File does not exist") == string::npos) {
-                    // Only proceed to receive file if the file exists
-                    receiveFile(filename);
-                }
-                else {
-                    cout << resp << endl << endl;
-                }
+                getFile(line, filename);
             }
+
             else {
-                cout << "Invalid command" << endl;
+                cout << "Invalid command" << endl << endl;
             }
         }
         else {
-            cout << "Empty input\n" << endl;
+            cout << "Empty input" << endl << endl;
         }
     }
 

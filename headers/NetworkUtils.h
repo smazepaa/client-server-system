@@ -55,6 +55,53 @@ public:
         }
         return totalData;
     }
+
+    static string receiveFile(const string& outputFilePath, SOCKET& clientSocket) {
+
+        if (exists(outputFilePath)) {
+            string response = "File already exists: " + outputFilePath;
+            return response;
+        }
+
+        ofstream outputFile(outputFilePath, ios::binary);
+        if (!outputFile.is_open()) {
+            string response = "Failed to open file for writing: " + outputFilePath;
+            return response;
+        }
+
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
+        string eofMarker = "<EOF>";
+        bool eofFound = false;
+
+        while (!eofFound) {
+            memset(buffer, 0, bufferSize);
+            int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
+
+            if (bytesReceived <= 0) {
+                string response = "File transfer failed";
+                return response;
+            }
+
+            // Check for EOF marker and write only up to the marker
+            for (int i = 0; i < bytesReceived; ++i) {
+                if (string(&buffer[i], &buffer[min(i + eofMarker.length(), static_cast<size_t>(bytesReceived))]) == eofMarker) {
+                    // Write data up to the EOF marker
+                    outputFile.write(buffer, i);
+                    eofFound = true;
+                    break;
+                }
+            }
+
+            if (!eofFound) {
+                outputFile.write(buffer, bytesReceived);
+            }
+        }
+
+        outputFile.close();
+        string response = "File transfer completed and saved to: " + outputFilePath;
+        return response;
+    }
 };
 
 #endif // NETWORK_UTILS_H
