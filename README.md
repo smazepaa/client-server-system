@@ -1,66 +1,51 @@
-# Client-Server Communication System
+# Enhanced Client-Server Communication Protocol
+This protocol outlines the communication strategy for a multithreaded client-server file management system. It enables multiple clients to simultaneously interact with the server for various file operations, using a chunk-based transfer method with distinct markers for message and file end.
 
-This document provides instructions for setting up and using a client-server communication system. It covers everything from setting up the connection to using various commands for file management.
+## Setup
+- **Server**: Initiates and listens on a specified port, handling multiple client connections concurrently through multithreading.
+- **Client**: Connects to the server's IP and port.
+- **Shared Utility (NetworkUtils.h)**: A common header for network operations (message/file receiving and sending), included in both client and server projects. Project properties should be configured to include the directory of this header.
 
-## Setting Up the Connection
-To ensure correct communication between client and server, the server solution should be run first, followed by the client.
+## Multithreading and Concurrent Handling
+### Server Multithreading:
+- Each client connection is handled by a separate thread, allowing the server to manage multiple clients concurrently.
+- Thread management involves creating, executing, and safely terminating threads after client disconnection or completion of tasks.
 
-## Directory Structure
-`server-dir`: The directory on the server where files are stored.
+### Client Handling:
+- At the beginning client provides its name for further distinction (each has its own subfolders in main client and server directories).
+- Each client operates independently, sending commands and receiving responses as if it were the sole connected client.
 
-`client-dir`: The directory on the client used for storing files.
+## Communication Structure
+**Message Format**: `[COMMAND]` `[ARGUMENTS]`, chunk-based (1024 bytes), followed by an `<END>` marker.
 
-_**Note**: Change these to the appropriate directories on your machine._
+**File Transfer**: Chunk-based, each chunk being 1024 bytes, ending with an `<EOF>` marker.
 
-## Commands and Responses
-**Syntax**: In the following commands **full filename** should be provided (for files – with both name and file extension, e.g. `text.txt`, for folders – simply their name, e.g. `my-files`). 
+## Commands
 
-Moreover, the filenames **should not contain spaces**.
+### **1. PUT `<filename>`**
+   - Uploads a file from the client to the server.
+   - **Server Response**: Success, error, or file existence status.
 
+### **2. LIST**
+   - Requests a list of files and directories from the server.
+   - **Server Response**: Listing of files/directories or notice of an empty directory.
 
-### PUT `<filename>`
-Uploads a file from the client directory to the server.
-- **Server Responses**:
-  - **File already exists: `<filepath>`** – uploading the file already present in the server directory.
-  - **Failed to open file for writing: `<filepath>`** - error in creating the file on the server’s end.
-  - **File transfer failed** – caused either by the failure of data receiving or client disconnection.
-  - **File transfer completed** – file successfully transferred and saved to the server directory.
+### **3. INFO `<filename>`**
+   - Retrieves details of a specified file or directory.
+   - **Server Response**: File information (name, size, type, last modified) or non-existence message.
 
-- **Client Responses**:
-  - **File does not exist: `<filepath>`** – the absence of the mentioned file in the client’s directory.
+### **4. DELETE `<filename>`**
+   - Deletes a specific file or directory on the server.
+   - **Server Response**: Confirmation of deletion or error message.
 
+### **5. GET `<filename>`**
+   - Downloads a file from the server to the client.
+   - **Server Response**: File transfer status or error information.
 
-### LIST
-Requests a list of available files on the server.
-- **Responses**:
-  - **Server directory is empty**
-  - **Files in the directory: `<list of files/folders>`** - prints the list of all the files and subdirectories in the server directory.
-    Files have `[File]` identifier before them, folders respectively `[Folder]`.
-    **Indents** before the elements are used to show the hierarchical structure of the directory.
+## Chunk-Based File Transfer
+- **File Uploads (PUT)**: Files are sent in chunks (1024 bytes each), with each chunk being appended to the target file on the server. The presence of an `<EOF>` marker signifies the end of the file.
+- **File Downloads (GET)**: The server sends file data in chunks (1024 bytes each), and the client writes these to the target file. The `<EOF>` marker indicates the end of the file data, prompting the client to stop writing and close the file.
 
-
-### INFO `<filename>`
-Requests information about a specific file or folder from the server.
-- **Responses**:
-  - **File does not exist** - no mentioned object present on the server
-  - **Information:** **Name**, **Size** (in bytes), **Type** (File/File Folder), **Last Modified** (YY-MM-DD HH:MM:SS).
-
-
-### DELETE `<filename>`
-Requests to delete a specific file or folder from the server.
-- **Responses**:
-  - **File/Folder does not exist on the server** – deleting the object not available in the server directory.
-  - **Failed to delete `<filename>`** - object deletion failure.
-  - **File/Folder was successfully deleted** – successful object deletion.
-
-
-### GET `<filename>`
-Requests to upload a specific file from the server to the client directory.
-- **Server Responses**:
-  - **File already exists: `<filepath>`** – uploading the file already present in the client directory.
-  - **File does not exist `<filepath>`** – request file unavailable on the server.
-  - **File transfer failed** – caused either by the failure of data receiving or client disconnection.
-  - **File transfer completed** – file successfully transferred and saved to the client directory.
-
-- **Client Responses**:
-  - **Failed to open file for writing: `<filepath>`** - error in creating the file on the client’s end.
+## Error Handling
+- **Connection Issues**: Addressing lost connections by closing sockets and cleaning up resources.
+- **Data Transmission Errors**: Aborting the command and communicating the error via a corresponding message.
