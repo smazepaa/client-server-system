@@ -109,17 +109,22 @@ class CommandHandler {
     string clientName;
 
     void handleCommands(const string& command, const string& filename) {
+
+        string path = serverDirectory + "/" + filename;
+
         if (command == "LIST") {
             listFiles();
         }
 
         else if (command == "GET") {
-            sendFile(filename);
+            string response = NetworkUtils::sendFile(path, clientSocket);
+            cout << clientName << " <- " << response << endl;
+            NetworkUtils::sendMessage(clientSocket, response);
+
         }
 
         else if (command == "PUT") {
-            string outputPath = serverDirectory + "/" + filename;
-            string response = NetworkUtils::receiveFile(outputPath, clientSocket);
+            string response = NetworkUtils::receiveFile(path, clientSocket);
             cout << clientName << " <- " << response << endl;
             NetworkUtils::sendMessage(clientSocket, response);
         }
@@ -232,41 +237,6 @@ class CommandHandler {
             cout << clientName << " <- " << "Failed to delete: " << filePath << endl;
             NetworkUtils::sendMessage(clientSocket, "Failed to delete " + filename);
         }
-    }
-
-    void sendFile(const string& filename) {
-        string filePath = serverDirectory + "/" + filename;
-
-        if (!exists(filePath)) {
-            string response = "File does not exist: " + filePath;
-            cout << clientName << " <- " << response << endl;
-            NetworkUtils::sendMessage(clientSocket, response);
-            return;
-        }
-
-        ifstream file(filePath, ios::binary);
-        if (!file.is_open()) {
-            cout << clientName << " <- " << "Failed to open file" << endl;
-            NetworkUtils::sendMessage(clientSocket, "Failed to open file\n");
-            return;
-        }
-
-        NetworkUtils::sendMessage(clientSocket, "File is present");
-
-        const size_t bufferSize = 1024;
-        char buffer[bufferSize];
-
-        while (file.read(buffer, bufferSize) || file.gcount()) {
-            send(clientSocket, buffer, file.gcount(), 0); // Send content by chunks
-        }
-
-        file.close();
-
-        const char* eofMarker = "<EOF>";
-        send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
-        // NetworkUtils::sendMessage(clientSocket, "File transfer completed\n");
-
-        cout << clientName << " <- " << NetworkUtils::receiveMessage(clientSocket) << endl;
     }
 
 

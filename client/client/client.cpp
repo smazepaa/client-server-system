@@ -86,29 +86,6 @@ class CommandHandler {
     string baseDirectory = "C:/Users/sofma/client-dir/";
     string clientDirectory;
 
-    void sendFile(const string& filename) {
-
-        string filePath = clientDirectory + "/" + filename;
-
-        ifstream file(filePath, ios::binary);
-        if (!file.is_open()) {
-            cout << "Failed to open file" << endl;
-            return;
-        }
-
-        const size_t bufferSize = 1024;
-        char buffer[bufferSize];
-
-        while (file.read(buffer, bufferSize) || file.gcount()) {
-            send(clientSocket, buffer, file.gcount(), 0); // send content by chunks
-        }
-
-        file.close();
-
-        const char* eofMarker = "<EOF>";
-        NetworkUtils::sendMessage(clientSocket, eofMarker); // send end-of-file marker
-    }
-
     void getFile(const string& line, const string& filename) {
         NetworkUtils::sendMessage(clientSocket, line);
         string resp = NetworkUtils::receiveMessage(clientSocket);
@@ -117,11 +94,9 @@ class CommandHandler {
 
             // Only proceed to receive file if the file exists
             string outputPath = clientDirectory + "/" + filename;
-
-            string response = NetworkUtils::receiveFile(outputPath, clientSocket);
-            cout << response << endl;
-
-            NetworkUtils::sendMessage(clientSocket, response);
+            cout << NetworkUtils::receiveFile(outputPath, clientSocket) << endl;
+            cout << NetworkUtils::receiveMessage(clientSocket) << endl;
+            
         }
         else {
             cout << resp << endl << endl;
@@ -166,7 +141,7 @@ public:
                 }
                 else {
                     NetworkUtils::sendMessage(clientSocket, line);
-                    sendFile(filename);
+                    cout << NetworkUtils::sendFile(filePath, clientSocket) << endl;
                     cout << NetworkUtils::receiveMessage(clientSocket) << endl << endl;
                 }
             }

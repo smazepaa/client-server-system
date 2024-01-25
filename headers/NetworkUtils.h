@@ -5,15 +5,18 @@
 
 #include <iostream>
 #include <string>
+#include <filesystem>
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
 
 using namespace std;
+namespace fs = std::filesystem;
+using namespace fs;
 
 class NetworkUtils {
 
 public:
-    static void sendMessage(SOCKET clientSocket, const string& message) {
+    static void sendMessage(SOCKET& clientSocket, const string& message) {
         string dataToSend = message + "<END>"; // End marker
         const size_t bufferSize = 1024;
         size_t dataLength = dataToSend.length();
@@ -30,7 +33,7 @@ public:
         }
     }
 
-    static string receiveMessage(SOCKET clientSocket) {
+    static string receiveMessage(SOCKET& clientSocket) {
         string totalData;
         char buffer[1024];
         const string endMarker = "<END>";
@@ -58,7 +61,7 @@ public:
 
     static string receiveFile(const string& outputFilePath, SOCKET& clientSocket) {
 
-        if (exists(outputFilePath)) {
+        if (fs::exists(outputFilePath)) {
             string response = "File already exists: " + outputFilePath;
             return response;
         }
@@ -100,6 +103,35 @@ public:
 
         outputFile.close();
         string response = "File transfer completed and saved to: " + outputFilePath;
+        return response;
+    }
+
+    static string sendFile(const string& filePath, SOCKET& clientSocket) {
+
+        if (!exists(filePath)) {
+            string response = "File does not exist: " + filePath;
+            return response;
+        }
+
+        ifstream file(filePath, ios::binary);
+        if (!file.is_open()) {
+            string response = "Failed to open file: " + filePath;
+            return response;
+        }
+
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
+
+        while (file.read(buffer, bufferSize) || file.gcount()) {
+            send(clientSocket, buffer, file.gcount(), 0); // Send content by chunks
+        }
+
+        file.close();
+
+        const char* eofMarker = "<EOF>";
+        send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
+
+        string response = "File successfully sent";
         return response;
     }
 };
