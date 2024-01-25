@@ -124,7 +124,6 @@ class CommandHandler {
         string totalData;
         char buffer[1024];
         const string endMarker = "<END>";
-        size_t found;
 
         while (true) {
             memset(buffer, 0, 1024);
@@ -132,15 +131,14 @@ class CommandHandler {
 
             if (bytesReceived > 0) {
                 totalData.append(buffer, bytesReceived);
-
-                found = totalData.find(endMarker);
+                size_t found = totalData.find(endMarker);
                 if (found != string::npos) {
-                    totalData.erase(found, endMarker.length()); // remove the end marker
+                    totalData.erase(found, endMarker.length());
                     break;
                 }
             }
             else {
-                break;
+                return "";
             }
         }
         return totalData;
@@ -168,7 +166,7 @@ class CommandHandler {
         }
 
         else {
-            cout << "Invalid command" << endl;
+            cout << clientName << " -> " << "Invalid command" << endl;
         }
     }
 
@@ -196,14 +194,14 @@ class CommandHandler {
         }
 
         sendResponse(fileList.c_str());
-        cout << "Request completed" << endl;
+        cout << clientName << " <- " << "List sent to the client" << endl;
     }
 
     void fileInfo(const string& filename) {
         string filePath = serverDirectory + "/" + filename;
 
         if (!exists(filePath)) {
-            cout << "File does not exist: " << filePath << endl;
+            cout << clientName << " <- " << "File does not exist: " << filePath << endl;
             sendResponse("File does not exist \n");
             return;
         }
@@ -249,6 +247,7 @@ class CommandHandler {
             + ftype + "\nLast Modified: " + timeStr;
 
         sendResponse(response);
+        cout << clientName << " <- " << "Information sent to the client." << endl;
     }
 
     void deleteFile(const string& filename) {
@@ -256,18 +255,18 @@ class CommandHandler {
         string fileType = is_directory(filePath) ? "Folder" : "File";
 
         if (!exists(filePath)) {
-            cout << fileType << " does not exist: " << filePath << endl;
+            cout << clientName << " <- " << fileType << " does not exist: " << filePath << endl;
             sendResponse(fileType + " does not exist on the server.\n");
             return;
         }
 
         if (remove(filePath)) {
-            cout << fileType << " was successfully deleted." << endl;
+            cout << clientName << " <- " << fileType << " was successfully deleted." << endl;
             sendResponse(fileType + " was successfully deleted.\n");
         }
 
         else {
-            cout << "Failed to delete: " << filePath << endl;
+            cout << clientName << " <- " << "Failed to delete: " << filePath << endl;
             sendResponse("Failed to delete " + filename);
         }
     }
@@ -277,14 +276,14 @@ class CommandHandler {
 
         if (!exists(filePath)) {
             string response = "File does not exist: " + filePath;
-            cout << response << endl;
+            cout << clientName << " <- " << response << endl;
             sendResponse(response);
             return;
         }
 
         ifstream file(filePath, ios::binary);
         if (!file.is_open()) {
-            cout << "Failed to open file" << endl;
+            cout << clientName << " <- " << "Failed to open file" << endl;
             sendResponse("Failed to open file\n");
             return;
         }
@@ -304,7 +303,8 @@ class CommandHandler {
         send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
         sendResponse("File transfer completed\n");
 
-        cout << receiveMessage() << endl;
+        cout << clientName << " <- " << "File transfer completed" << endl;
+        cout << clientName << " -> " << receiveMessage() << endl;
     }
 
     void receiveFile(const string& filename) {
@@ -313,7 +313,7 @@ class CommandHandler {
 
         if (exists(outputFilePath)) {
             string response = "File already exists: " + outputFilePath;
-            cout << response << endl;
+            cout << clientName << " <- " << response << endl;
             sendResponse(response);
             return;
         }
@@ -321,7 +321,7 @@ class CommandHandler {
         ofstream outputFile(outputFilePath, ios::binary);
         if (!outputFile.is_open()) {
             string response = "Failed to open file for writing: " + outputFilePath;
-            cout << response << endl;
+            cout << clientName << " <- " << response << endl;
             sendResponse(response);
             return;
         }
@@ -336,7 +336,7 @@ class CommandHandler {
             int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
 
             if (bytesReceived <= 0) {
-                cout << "Failed to receive data or connection closed by client." << endl;
+                cout << clientName << " <- " << "Failed to receive data or connection closed by client." << endl;
                 const char* response = "File transfer failed";
                 sendResponse(response);
                 break;
@@ -358,7 +358,7 @@ class CommandHandler {
         }
 
         outputFile.close();
-        cout << "File transfer completed and saved to: " << outputFilePath << endl;
+        cout << clientName << " <- " << "File transfer completed and saved to: " << outputFilePath << endl;
         const char* response = "File transfer completed";
         sendResponse(response);
     }
@@ -372,7 +372,7 @@ public:
         serverDirectory = baseDirectory + clientName;
 
         cout << "Accepted connection from " << clientName << endl;
-        cout << "Working directory: " << serverDirectory << endl << endl;
+        cout << "Working directory: " << serverDirectory << endl;
 
         if (!fs::exists(serverDirectory)) {
             create_directory(serverDirectory);
@@ -381,26 +381,26 @@ public:
 
     void receiveCommands() {
         string received = receiveMessage();
-        cout << clientName << " - s" << received << endl;
-        if (received != "") {
-
-            vector<string> params;
-            istringstream iss(received);
-            string word;
-            while (iss >> word) {
-                params.push_back(word);
-            }
-
-            if (params.empty()) {
-                cout << "No command received." << endl;
-                return;
-            }
-
-            string command = params[0];
-            string filename = (params.size() > 1) ? params[1] : "";
-
-            handleCommands(command, filename);
+        if (received.empty()) {
+            cout << clientName << " disconnected." << endl;
+            closesocket(clientSocket);
+            clientSocket = INVALID_SOCKET; // Update socket status
+            return; // Exit the method
         }
+
+        cout << clientName << " -> " << received << endl;
+
+        vector<string> params;
+        istringstream iss(received);
+        string word;
+        while (iss >> word) {
+            params.push_back(word);
+        }
+
+        string command = params[0];
+        string filename = (params.size() > 1) ? params[1] : "";
+
+        handleCommands(command, filename);
     }
 
     bool isReady() {
@@ -452,7 +452,7 @@ public:
 int main() {
     try {
         Server server;
-        server.start();  // Start the server to accept and handle connections
+        server.start();
     }
     catch (const runtime_error& e) {
         cerr << "Server Error: " << e.what() << endl;

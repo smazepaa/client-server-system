@@ -92,10 +92,15 @@ class CommandHandler {
 
         while (sent < dataLength) {
             size_t toSend = min(bufferSize, dataLength - sent);
-            send(clientSocket, dataToSend.c_str() + sent, toSend, 0);
-            sent += toSend;
+            int bytesSent = send(clientSocket, dataToSend.c_str() + sent, toSend, 0);
+            if (bytesSent == SOCKET_ERROR) {
+                cerr << "Failed to send data: " << WSAGetLastError() << endl;
+                return;
+            }
+            sent += bytesSent;
         }
     }
+
 
     string receiveMessage() {
         string totalData;
