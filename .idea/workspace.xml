@@ -5,11 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="74a6a293-bdf6-443d-b360-dda9e456cdfa" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/client.py" beforeDir="false" afterPath="$PROJECT_DIR$/client/client.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/client/client.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/client/client/client.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/server/server.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/server/server/server.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -93,6 +90,8 @@
       <workItem from="1705750153543" duration="168000" />
       <workItem from="1705944344205" duration="18000" />
       <workItem from="1706108372879" duration="1190000" />
+      <workItem from="1706226351934" duration="210000" />
+      <workItem from="1706251367931" duration="1172000" />
     </task>
     <servers />
   </component>
@@ -111,6 +110,6 @@
     </option>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/csp_intro$client.coverage" NAME="client Coverage Results" MODIFIED="1706108906820" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/client" />
+    <SUITE FILE_PATH="coverage/csp_intro$client.coverage" NAME="client Coverage Results" MODIFIED="1706258691601" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/client" />
   </component>
 </project>

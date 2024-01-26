@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <mutex>
 #include <WinSock2.h>
 #include <Ws2tcpip.h>
 #include "NetworkUtils.h"
@@ -14,8 +15,9 @@
 #pragma comment(lib, "ws2_32.lib")
 
 using namespace std;
-namespace fs = std::filesystem;
+namespace fs = filesystem;
 using namespace fs;
+mutex m;
 
 class ConnectionManager {
 
@@ -118,14 +120,18 @@ class CommandHandler {
 
         else if (command == "GET") {
             string response = NetworkUtils::sendFile(path, clientSocket);
+            m.lock();
             cout << clientName << " <- " << response << endl;
+            m.unlock();
             NetworkUtils::sendMessage(clientSocket, response);
 
         }
 
         else if (command == "PUT") {
             string response = NetworkUtils::receiveFile(path, clientSocket);
+            m.lock();
             cout << clientName << " <- " << response << endl;
+            m.unlock();
             NetworkUtils::sendMessage(clientSocket, response);
         }
 
@@ -152,6 +158,7 @@ class CommandHandler {
     }
 
     void listFiles() {
+        m.lock();
         string fileList = "Files in directory: " + serverDirectory + "\n";
 
         if (fs::is_empty(serverDirectory)) {
@@ -163,9 +170,11 @@ class CommandHandler {
 
         NetworkUtils::sendMessage(clientSocket, fileList.c_str());
         cout << clientName << " <- " << "List sent to the client" << endl;
+        m.unlock();
     }
 
     void fileInfo(const string& filename) {
+        m.lock();
         string filePath = serverDirectory + "/" + filename;
 
         if (!exists(filePath)) {
@@ -188,6 +197,7 @@ class CommandHandler {
             totalSize = file_size(filePath);
         }
 
+        m.unlock();
         // Convert size to human-readable format
         string readableSize;
         if (totalSize < 1024) {
@@ -215,10 +225,13 @@ class CommandHandler {
             + ftype + "\nLast Modified: " + timeStr;
 
         NetworkUtils::sendMessage(clientSocket, response);
+        m.lock();
         cout << clientName << " <- " << "Information sent to the client." << endl;
+        m.unlock();
     }
 
     void deleteFile(const string& filename) {
+        m.lock();
         string filePath = serverDirectory + "/" + filename;
         string fileType = is_directory(filePath) ? "Folder" : "File";
 
@@ -237,6 +250,7 @@ class CommandHandler {
             cout << clientName << " <- " << "Failed to delete: " << filePath << endl;
             NetworkUtils::sendMessage(clientSocket, "Failed to delete " + filename);
         }
+        m.unlock();
     }
 
 
@@ -259,13 +273,17 @@ public:
     void receiveCommands() {
         string received = NetworkUtils::receiveMessage(clientSocket);
         if (received.empty()) {
+            m.lock();
             cout << clientName << " disconnected." << endl;
+            m.unlock();
             closesocket(clientSocket);
             clientSocket = INVALID_SOCKET; // Update socket status
             return; // Exit the method
         }
 
+        m.lock();
         cout << clientName << " -> " << received << endl;
+        m.unlock();
 
         vector<string> params;
         istringstream iss(received);
