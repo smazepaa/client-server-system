@@ -4,8 +4,11 @@
 #include <winsock2.h>
 #include <Ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
+#include "NetworkUtils.h"
 
 using namespace std;
+namespace fs = std::filesystem;
+using namespace fs;
 
 class ConnectionManager {
 
@@ -91,6 +94,28 @@ public:
     bool isReady() const {
         return clientSocket != INVALID_SOCKET;
     }
+
+    void sendClientName() {
+        string name;
+        while (name == "") {
+            cout << "Enter client name: ";
+            getline(cin, name);
+            if (name != "") {
+                cout << "Client name accepted: " << name << endl << endl;
+                NetworkUtils::sendMessage(clientSocket, name);
+
+                clientDirectory = baseDirectory + name;
+                if (!fs::exists(clientDirectory)) {
+                    create_directory(clientDirectory);
+                }
+
+                cout << "Enter messages: " << endl;
+            }
+            else {
+                cout << "Cannot proceed with empty client name" << endl;
+            }
+        }
+    }
 };
 
 class Client {
@@ -104,6 +129,7 @@ public:
         clientSocket = connManager.getClientSocket();
         if (connManager.isReady()) {
             connManager.connectToServer();
+            cmdHandler.sendClientName();
         }
         else {
             throw runtime_error("Client is not ready for connections");
@@ -111,15 +137,13 @@ public:
     }
 
     void receiveMessages() {
-        char buffer[4096];
         while (true) {
-            int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-            if (bytesReceived <= 0) {
+            string message = NetworkUtils::receiveMessage(clientSocket);
+            if (message == "") {
                 cerr << "Server disconnected.\n";
                 break;
             }
-            buffer[bytesReceived] = '\0';
-            cout << buffer << endl;
+            cout << message << endl;
         }
     }
 
@@ -128,8 +152,8 @@ public:
             thread receiveThread([this]() { this->receiveMessages(); });
             string message;
             while (true) {
-                getline(std::cin, message);
-                send(clientSocket, message.c_str(), message.size() + 1, 0);
+                getline(cin, message);
+                NetworkUtils::sendMessage(clientSocket, message);
             }
         }
     }

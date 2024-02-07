@@ -5,8 +5,11 @@
 #include <mutex>
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
+#include "NetworkUtils.h"
 
 using namespace std;
+namespace fs = filesystem;
+using namespace fs;
 
 mutex consoleMutex;
 vector<SOCKET> clients;
@@ -106,7 +109,17 @@ public:
 
     CommandHandler() : clientSocket(INVALID_SOCKET) {}
 
-    CommandHandler(SOCKET& client) : clientSocket(client) {}
+    CommandHandler(SOCKET& client) : clientSocket(client) {
+        clientName = NetworkUtils::receiveMessage(clientSocket);
+        serverDirectory = baseDirectory + clientName;
+
+        cout << "Accepted connection from " << clientName << endl;
+        cout << "Working directory: " << serverDirectory << endl;
+
+        if (!fs::exists(serverDirectory)) {
+            create_directory(serverDirectory);
+        }
+    }
 
     bool isReady() {
         return this->clientSocket != INVALID_SOCKET;
@@ -114,27 +127,26 @@ public:
 
     void broadcastMessage(const string& message, SOCKET senderSocket) {
         lock_guard<mutex> lock(consoleMutex);
-        string fullMessage = "Client " + to_string(senderSocket) + ": " + message;
+        string fullMessage = clientName + ": " + message;
         cout << fullMessage << endl;
         for (SOCKET client : clients) {
             if (client != senderSocket) {
-                send(client, fullMessage.c_str(), fullMessage.size() + 1, 0);
+                NetworkUtils::sendMessage(client, fullMessage);
             }
         }
     }
 
     void handleClient() {
         clients.push_back(clientSocket);
-        char buffer[4096];
         while (true) {
-            int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-            if (bytesReceived <= 0) {
+            string message = NetworkUtils::receiveMessage(clientSocket);
+            if (message == "") {
                 lock_guard<mutex> lock(consoleMutex);
-                cout << "Client " << clientSocket << " disconnected.\n";
-                break;
+                cout << clientName << " disconnected.\n";
+                closesocket(clientSocket);
+                clientSocket = INVALID_SOCKET;
+                return;
             }
-            buffer[bytesReceived] = '\0';
-            string message(buffer);
             broadcastMessage(message, clientSocket);
         }
         closesocket(clientSocket);
@@ -167,11 +179,9 @@ public:
 
     void start() {
         while (true) {
-            cout << "Waiting for a new client..." << endl;
             SOCKET clientSocket = connManager.acceptClient();
             if (clientSocket != INVALID_SOCKET) {
                 lock_guard<mutex> lock(consoleMutex);
-                cout << "Client " << clientSocket << " connected.\n";
                 thread clientThread([this, clientSocket]() {
                     this->handleClient(clientSocket);});
                 clientThread.detach();
