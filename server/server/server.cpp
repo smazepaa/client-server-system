@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include <map>
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
 #include "NetworkUtils.h"
@@ -13,6 +14,9 @@ using namespace fs;
 
 mutex consoleMutex;
 vector<SOCKET> clients;
+map<int, vector<SOCKET>> roomsClients; // Use an int for room ID, adjust as needed
+mutex roomsMutex; // Protect access to roomsClients
+
 
 class ConnectionManager {
 
@@ -104,13 +108,18 @@ class CommandHandler {
     string serverDirectory;
     string baseDirectory = "C:/Users/sofma/server-dir/";
     string clientName;
+    int roomId; // Add room ID member
 
 public:
 
     CommandHandler() : clientSocket(INVALID_SOCKET) {}
 
     CommandHandler(SOCKET& client) : clientSocket(client) {
-        clientName = NetworkUtils::receiveMessage(clientSocket);
+        string clientInfo = NetworkUtils::receiveMessage(clientSocket);
+        size_t delimiterPos = clientInfo.find(';');
+        clientName = clientInfo.substr(0, delimiterPos);
+        roomId = stoi(clientInfo.substr(delimiterPos + 1)); // Assuming room ID is always a valid int
+
         serverDirectory = baseDirectory + clientName;
 
         cout << "Accepted connection from " << clientName << endl;
@@ -127,27 +136,39 @@ public:
 
     void broadcastMessage(const string& message, SOCKET senderSocket) {
         lock_guard<mutex> lock(consoleMutex);
-        string fullMessage = clientName + ": " + message;
-        cout << fullMessage << endl;
-        for (SOCKET client : clients) {
+        // Broadcast message only to clients in the same room
+        for (SOCKET client : roomsClients[roomId]) {
             if (client != senderSocket) {
-                NetworkUtils::sendMessage(client, fullMessage);
+                NetworkUtils::sendMessage(client, message);
             }
         }
     }
 
     void handleClient() {
-        clients.push_back(clientSocket);
+        //clients.push_back(clientSocket);
+        roomsClients[roomId].push_back(clientSocket);
+        string connectionMessage = clientName + " joined ROOM " + to_string(roomId);
+        cout << connectionMessage << endl;
+        broadcastMessage(connectionMessage, clientSocket);
+        
         while (true) {
             string message = NetworkUtils::receiveMessage(clientSocket);
             if (message == "") {
                 lock_guard<mutex> lock(consoleMutex);
                 cout << clientName << " disconnected.\n";
+
+                auto& clients = roomsClients[roomId];
+                auto it = std::find(clients.begin(), clients.end(), clientSocket);
+                if (it != clients.end()) {
+                    clients.erase(it);
+                }
+
                 closesocket(clientSocket);
                 clientSocket = INVALID_SOCKET;
                 return;
             }
-            broadcastMessage(message, clientSocket);
+            string fullMessage = clientName + ": " + message;
+            broadcastMessage(fullMessage, clientSocket);
         }
         closesocket(clientSocket);
     }

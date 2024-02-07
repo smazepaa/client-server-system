@@ -96,13 +96,15 @@ public:
     }
 
     void sendClientName() {
-        string name;
+        string name, roomId;
         while (name == "") {
             cout << "Enter client name: ";
             getline(cin, name);
             if (name != "") {
-                cout << "Client name accepted: " << name << endl << endl;
-                NetworkUtils::sendMessage(clientSocket, name);
+                cout << "Enter room ID: ";
+                getline(cin, roomId); // Ask for room ID
+                string clientInfo = name + ";" + roomId; // Combine name and roomId separated by a delimiter
+                NetworkUtils::sendMessage(clientSocket, clientInfo);
 
                 clientDirectory = baseDirectory + name;
                 if (!fs::exists(clientDirectory)) {
