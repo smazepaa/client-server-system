@@ -18,15 +18,6 @@ mutex consoleMutex;
 vector<SOCKET> clients;
 map<int, vector<SOCKET>> roomsClients;
 
-struct Message {
-    int roomId;
-    SOCKET senderSocket;
-    string content;
-
-    Message(int roomId, SOCKET& senderSocket, const string& content)
-        : roomId(roomId), senderSocket(senderSocket), content(content) {}
-};
-
 class ConnectionManager {
 
     SOCKET serverSocket;
@@ -123,11 +114,12 @@ class CommandHandler {
     condition_variable messageAvailableCondition;
     queue<string> messageQueue;
 
+    thread broadcastThread;
+    bool broadcasting = true;
+
     void addMessageToQueue(const string& message) {
-        {
-            lock_guard<mutex> lock(messageQueueMutex);
-            messageQueue.push(message);
-        }
+        lock_guard<mutex> lock(messageQueueMutex);
+        messageQueue.push(message);
         messageAvailableCondition.notify_one();
     }
 
@@ -141,15 +133,17 @@ class CommandHandler {
     }
 
     void broadcastMessages() {
-        while (true) {
+        while (broadcasting) {
             unique_lock<mutex> lock(messageQueueMutex);
             messageAvailableCondition.wait(lock, [this] {
-                return !messageQueue.empty();
-            });
+                return !messageQueue.empty() || !broadcasting;
+                });
             while (!messageQueue.empty()) {
                 string message = messageQueue.front();
                 messageQueue.pop();
+                lock.unlock(); // to prevent deadlocks
                 broadcastMessage(message, clientSocket);
+                lock.lock();
             }
         }
     }
@@ -172,6 +166,17 @@ public:
         if (!fs::exists(serverDirectory)) {
             create_directory(serverDirectory);
         }
+
+        broadcastThread = thread(&CommandHandler::broadcastMessages, this);
+    }
+
+    ~CommandHandler() {
+        broadcasting = false;
+        messageAvailableCondition.notify_all();
+        if (broadcastThread.joinable()) {
+            broadcastThread.join();
+        }
+        closesocket(clientSocket);
     }
 
     bool isReady() {
@@ -184,12 +189,13 @@ public:
         cout << connectionMessage << endl;
         addMessageToQueue(connectionMessage);
         
-        while (true) {
+        while (broadcasting) {
             string message = NetworkUtils::receiveMessage(clientSocket);
             if (message == "") {
                 lock_guard<mutex> lock(consoleMutex);
                 cout << clientName << " disconnected.\n";
-
+                string message = clientName + "left the room";
+                addMessageToQueue(message);
                 auto& clients = roomsClients[roomId];
                 auto it = std::find(clients.begin(), clients.end(), clientSocket);
                 if (it != clients.end()) {
@@ -198,11 +204,11 @@ public:
 
                 closesocket(clientSocket);
                 clientSocket = INVALID_SOCKET;
+
                 return;
             }
             string fullMessage = clientName + ": " + message;
             addMessageToQueue(fullMessage);
-            broadcastMessages();
         }
         closesocket(clientSocket);
     }
