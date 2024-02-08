@@ -4,6 +4,8 @@
 #include <string>
 #include <mutex>
 #include <map>
+#include <queue>
+#include<condition_variable>
 #include <winsock2.h>
 #pragma comment(lib, "ws2_32.lib")
 #include "NetworkUtils.h"
@@ -14,9 +16,16 @@ using namespace fs;
 
 mutex consoleMutex;
 vector<SOCKET> clients;
-map<int, vector<SOCKET>> roomsClients; // Use an int for room ID, adjust as needed
-mutex roomsMutex; // Protect access to roomsClients
+map<int, vector<SOCKET>> roomsClients;
 
+struct Message {
+    int roomId;
+    SOCKET senderSocket;
+    string content;
+
+    Message(int roomId, SOCKET& senderSocket, const string& content)
+        : roomId(roomId), senderSocket(senderSocket), content(content) {}
+};
 
 class ConnectionManager {
 
@@ -108,7 +117,42 @@ class CommandHandler {
     string serverDirectory;
     string baseDirectory = "C:/Users/sofma/server-dir/";
     string clientName;
-    int roomId; // Add room ID member
+    int roomId;
+
+    mutex messageQueueMutex;
+    condition_variable messageAvailableCondition;
+    queue<string> messageQueue;
+
+    void addMessageToQueue(const string& message) {
+        {
+            lock_guard<mutex> lock(messageQueueMutex);
+            messageQueue.push(message);
+        }
+        messageAvailableCondition.notify_one();
+    }
+
+    void broadcastMessage(const string& message, SOCKET senderSocket) {
+        lock_guard<mutex> lock(consoleMutex);
+        for (SOCKET client : roomsClients[roomId]) {
+            if (client != senderSocket) {
+                NetworkUtils::sendMessage(client, message);
+            }
+        }
+    }
+
+    void broadcastMessages() {
+        while (true) {
+            unique_lock<mutex> lock(messageQueueMutex);
+            messageAvailableCondition.wait(lock, [this] {
+                return !messageQueue.empty();
+            });
+            while (!messageQueue.empty()) {
+                string message = messageQueue.front();
+                messageQueue.pop();
+                broadcastMessage(message, clientSocket);
+            }
+        }
+    }
 
 public:
 
@@ -118,7 +162,7 @@ public:
         string clientInfo = NetworkUtils::receiveMessage(clientSocket);
         size_t delimiterPos = clientInfo.find(';');
         clientName = clientInfo.substr(0, delimiterPos);
-        roomId = stoi(clientInfo.substr(delimiterPos + 1)); // Assuming room ID is always a valid int
+        roomId = stoi(clientInfo.substr(delimiterPos + 1));
 
         serverDirectory = baseDirectory + clientName;
 
@@ -134,22 +178,11 @@ public:
         return this->clientSocket != INVALID_SOCKET;
     }
 
-    void broadcastMessage(const string& message, SOCKET senderSocket) {
-        lock_guard<mutex> lock(consoleMutex);
-        // Broadcast message only to clients in the same room
-        for (SOCKET client : roomsClients[roomId]) {
-            if (client != senderSocket) {
-                NetworkUtils::sendMessage(client, message);
-            }
-        }
-    }
-
     void handleClient() {
-        //clients.push_back(clientSocket);
         roomsClients[roomId].push_back(clientSocket);
         string connectionMessage = clientName + " joined ROOM " + to_string(roomId);
         cout << connectionMessage << endl;
-        broadcastMessage(connectionMessage, clientSocket);
+        addMessageToQueue(connectionMessage);
         
         while (true) {
             string message = NetworkUtils::receiveMessage(clientSocket);
@@ -168,7 +201,8 @@ public:
                 return;
             }
             string fullMessage = clientName + ": " + message;
-            broadcastMessage(fullMessage, clientSocket);
+            addMessageToQueue(fullMessage);
+            broadcastMessages();
         }
         closesocket(clientSocket);
     }

@@ -102,8 +102,8 @@ public:
             getline(cin, name);
             if (name != "") {
                 cout << "Enter room ID: ";
-                getline(cin, roomId); // Ask for room ID
-                string clientInfo = name + ";" + roomId; // Combine name and roomId separated by a delimiter
+                getline(cin, roomId);
+                string clientInfo = name + ";" + roomId;
                 NetworkUtils::sendMessage(clientSocket, clientInfo);
 
                 clientDirectory = baseDirectory + name;
@@ -143,7 +143,7 @@ public:
             string message = NetworkUtils::receiveMessage(clientSocket);
             if (message == "") {
                 cerr << "Server disconnected.\n";
-                break;
+                return;
             }
             cout << message << endl;
         }
@@ -160,7 +160,6 @@ public:
         }
     }
 };
-
 
 int main() {
     try {
