@@ -208,6 +208,7 @@ public:
         
         while (broadcasting) {
             string message = NetworkUtils::receiveMessage(clientSocket);
+            cout << message << endl;
             if (message == "") {
                 lock_guard<mutex> lock(consoleMutex);
                 cout << clientName << " disconnected.\n";
@@ -242,6 +243,17 @@ public:
                 string confirmation = "Joined room " + roomIdStr;
                 NetworkUtils::sendMessage(clientSocket, confirmation);
             }
+
+            else if (message._Starts_with(".f ")) {
+                string filename = message.substr(3);
+                cout << filename << endl;
+                string path = serverDirectory + "/" + filename;
+                cout << path << endl;
+
+                string response = NetworkUtils::receiveFile(path, clientSocket);
+                cout << response << endl;
+            }
+
             else {
                 string fullMessage = clientName + ": " + message;
                 addMessageToQueue(fullMessage);
