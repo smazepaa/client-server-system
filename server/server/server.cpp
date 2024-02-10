@@ -132,7 +132,7 @@ class CommandHandler {
         }
     }
 
-    void broadcastMessages() {
+    void processMessages() {
         while (broadcasting) {
             unique_lock<mutex> lock(messageQueueMutex);
             messageAvailableCondition.wait(lock, [this] {
@@ -141,11 +141,28 @@ class CommandHandler {
             while (!messageQueue.empty()) {
                 string message = messageQueue.front();
                 messageQueue.pop();
-                lock.unlock(); // to prevent deadlocks
                 broadcastMessage(message, clientSocket);
-                lock.lock();
             }
         }
+    }
+
+    void quitRoom() {
+        lock_guard<mutex> lock(consoleMutex);
+        bool successful = false;
+        auto& clients = roomsClients[roomId];
+        auto it = find(clients.begin(), clients.end(), clientSocket);
+        if (it != clients.end()) {
+            clients.erase(it);
+            successful = true;
+        }
+
+        if (successful) {
+            //NetworkUtils::sendMessage(clientSocket, "You left the room");
+            cout << clientName << " left ROOM " + to_string(roomId) << endl;
+            string leaveMessage = clientName + " left the room";
+            addMessageToQueue(leaveMessage);
+        }
+        
     }
 
 public:
@@ -167,7 +184,7 @@ public:
             create_directory(serverDirectory);
         }
 
-        broadcastThread = thread(&CommandHandler::broadcastMessages, this);
+        broadcastThread = thread(&CommandHandler::processMessages, this);
     }
 
     ~CommandHandler() {
@@ -194,10 +211,10 @@ public:
             if (message == "") {
                 lock_guard<mutex> lock(consoleMutex);
                 cout << clientName << " disconnected.\n";
-                string message = clientName + "left the room";
+                string message = clientName + " left the room";
                 addMessageToQueue(message);
                 auto& clients = roomsClients[roomId];
-                auto it = std::find(clients.begin(), clients.end(), clientSocket);
+                auto it = find(clients.begin(), clients.end(), clientSocket);
                 if (it != clients.end()) {
                     clients.erase(it);
                 }
@@ -207,8 +224,28 @@ public:
 
                 return;
             }
-            string fullMessage = clientName + ": " + message;
-            addMessageToQueue(fullMessage);
+
+            else if (message == ".q") {
+                quitRoom();
+            }
+            else if (message._Starts_with(".j ")) {
+                string roomIdStr = message.substr(3);
+                roomId = stoi(roomIdStr);
+                // Join new room
+
+                lock_guard<mutex> lock(consoleMutex);
+                roomsClients[roomId].push_back(clientSocket);
+                string connectionMessage = clientName + " joined ROOM " + to_string(roomId);
+                cout << connectionMessage << endl;
+                addMessageToQueue(connectionMessage);
+
+                string confirmation = "Joined room " + roomIdStr;
+                NetworkUtils::sendMessage(clientSocket, confirmation);
+            }
+            else {
+                string fullMessage = clientName + ": " + message;
+                addMessageToQueue(fullMessage);
+            }
         }
         closesocket(clientSocket);
     }

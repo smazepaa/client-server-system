@@ -103,6 +103,7 @@ public:
             if (name != "") {
                 cout << "Enter room ID: ";
                 getline(cin, roomId);
+                cout << "You joined ROOM " << roomId << endl << endl;
                 string clientInfo = name + ";" + roomId;
                 NetworkUtils::sendMessage(clientSocket, clientInfo);
 
@@ -111,7 +112,7 @@ public:
                     create_directory(clientDirectory);
                 }
 
-                cout << "Enter messages: " << endl;
+                // cout << "Enter messages: " << endl;
             }
             else {
                 cout << "Cannot proceed with empty client name" << endl;
@@ -155,8 +156,48 @@ public:
             string message;
             while (true) {
                 getline(cin, message);
-                NetworkUtils::sendMessage(clientSocket, message);
+                handleCommands(message);
             }
+        }
+    }
+
+    void handleCommands(const string& message) {
+        stringstream ss(message);
+        string command;
+        getline(ss, command, ' ');
+
+        if (command == ".m") {
+            string messageContent;
+            getline(ss, messageContent);
+            if (!messageContent.empty()) {
+                cout << "You: " << messageContent << endl;
+                NetworkUtils::sendMessage(clientSocket, messageContent);
+            }
+            else {
+                cout << "Cannot send an empty message." << endl;
+            }
+        }
+        else if (command == ".q") {
+            string confirmation;
+            cout << "Do you want to leave the room? [y/n] ";
+            getline(cin, confirmation);
+            if (confirmation == "y") {
+                NetworkUtils::sendMessage(clientSocket, ".q");
+                // cout << NetworkUtils::receiveMessage(clientSocket) << endl;
+                cout << "you left the room" << endl;
+
+                string newRoomId;
+                cout << "Enter new room ID to join or type '.q' to quit: ";
+                getline(cin, newRoomId);
+                if (newRoomId != ".q") {
+                    NetworkUtils::sendMessage(clientSocket, ".j " + newRoomId);
+                    cout << NetworkUtils::receiveMessage(clientSocket) << endl;
+                }
+            }
+            
+        }
+        else {
+            cout << "Unknown command or message not prefixed correctly. Please use .m to send a message." << endl;
         }
     }
 };
