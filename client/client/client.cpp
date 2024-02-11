@@ -82,6 +82,9 @@ class CommandHandler {
     string baseDirectory = "C:/Users/sofma/client-dir/";
     string clientDirectory;
 
+    
+
+
 public:
 
     CommandHandler(SOCKET socket) : clientSocket(socket) {}
@@ -118,6 +121,14 @@ public:
                 cout << "Cannot proceed with empty client name" << endl;
             }
         }
+    }
+
+    void receiveFile(const string& filename) {
+        string filePath = clientDirectory + "/" + filename;
+        cout << "Receiving file: " << filename << endl;
+        // Assume NetworkUtils has a method to receive a file
+        string status = NetworkUtils::receiveFile(filePath, clientSocket);
+        cout << status << endl;
     }
 
     void handleCommands(const string& message) {
@@ -163,6 +174,7 @@ public:
                 NetworkUtils::sendMessage(clientSocket, message);
                 string filePath = clientDirectory + "/" + filename;
                 cout << NetworkUtils::sendFile(filePath, clientSocket) << endl;
+                
             }
             else {
                 cout << "Enter filename." << endl;
@@ -200,9 +212,17 @@ public:
                 cerr << "Server disconnected.\n";
                 return;
             }
-            cout << message << endl;
+            if (message._Starts_with(".f ")) {
+                // Extract the filename from the message
+                string filename = message.substr(3);
+                cmdHandler.receiveFile(filename);
+            }
+            else {
+                cout << message << endl;
+            }
         }
     }
+
 
     void processInput() {
         if (cmdHandler.isReady()) {

@@ -61,72 +61,81 @@ public:
         return totalData;
     }
 
-    static void sendWithLength(SOCKET socket, const char* data, size_t length) {
-        // Send the length of the data first
-        send(socket, reinterpret_cast<const char*>(&length), sizeof(size_t), 0);
-        // Then send the data
-        send(socket, data, length, 0);
-    }
+    static string receiveFile(const string& outputFilePath, SOCKET& clientSocket) {
 
-    static void recvWithLength(SOCKET socket, string& data) {
-        size_t length;
-        // Receive the length of the data first
-        recv(socket, reinterpret_cast<char*>(&length), sizeof(size_t), 0);
-        // Allocate buffer according to the length
-        char* buffer = new char[length + 1];
-        // Receive the data
-        recv(socket, buffer, length, 0);
-        // Null-terminate the string
-        buffer[length] = '\0';
-        // Assign to the data string
-        data.assign(buffer, length);
-        // Clean up
-        delete[] buffer;
+        if (fs::exists(outputFilePath)) {
+            string response = "File already exists: " + outputFilePath;
+            return response;
+        }
+
+        ofstream outputFile(outputFilePath, ios::binary);
+        if (!outputFile.is_open()) {
+            string response = "Failed to open file for writing: " + outputFilePath;
+            return response;
+        }
+
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
+        string eofMarker = "<EOF>";
+        bool eofFound = false;
+
+        while (!eofFound) {
+            memset(buffer, 0, bufferSize);
+            int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
+
+            if (bytesReceived <= 0) {
+                string response = "File transfer failed";
+                return response;
+            }
+
+            // Check for EOF marker and write only up to the marker
+            for (int i = 0; i < bytesReceived; ++i) {
+                if (string(&buffer[i], &buffer[min(i + eofMarker.length(), static_cast<size_t>(bytesReceived))]) == eofMarker) {
+                    // Write data up to the EOF marker
+                    outputFile.write(buffer, i);
+                    eofFound = true;
+                    break;
+                }
+            }
+
+            if (!eofFound) {
+                outputFile.write(buffer, bytesReceived);
+            }
+        }
+
+        outputFile.close();
+        string response = "File transfer completed and saved to: " + outputFilePath;
+        return response;
     }
 
     static string sendFile(const string& filePath, SOCKET& clientSocket) {
+
         if (!exists(filePath)) {
-            return "File does not exist: " + filePath;
+            string response = "File does not exist: " + filePath;
+            return response;
         }
 
         ifstream file(filePath, ios::binary);
         if (!file.is_open()) {
-            return "Failed to open file: " + filePath;
+            string response = "Failed to open file: " + filePath;
+            return response;
         }
 
-        file.seekg(0, ios::end);
-        size_t fileSize = file.tellg();
-        file.seekg(0, ios::beg);
+        const size_t bufferSize = 1024;
+        char buffer[bufferSize];
 
-        char* buffer = new char[fileSize];
-        file.read(buffer, fileSize);
-
-        // Sending file size and content
-        sendWithLength(clientSocket, buffer, fileSize);
+        while (file.read(buffer, bufferSize) || file.gcount()) {
+            send(clientSocket, buffer, file.gcount(), 0); // Send content by chunks
+        }
 
         file.close();
-        delete[] buffer;
 
-        return "File successfully sent";
+        const char* eofMarker = "<EOF>";
+        send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
+
+        string response = "File successfully sent";
+        return response;
     }
-
-    static string receiveFile(const string& outputFilePath, SOCKET& clientSocket) {
-        ofstream outputFile(outputFilePath, ios::binary);
-        if (!outputFile.is_open()) {
-            return "Failed to open file for writing: " + outputFilePath;
-        }
-
-        string fileData;
-        // Receiving file size and content
-        recvWithLength(clientSocket, fileData);
-
-        outputFile.write(fileData.c_str(), fileData.size());
-        outputFile.close();
-
-        return "File transfer completed and saved to: " + outputFilePath;
-    }
-
-
 };
 
 #endif // NETWORK_UTILS_H

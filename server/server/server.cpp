@@ -105,7 +105,6 @@ public:
 class CommandHandler {
 
     SOCKET clientSocket;
-    string serverDirectory;
     string baseDirectory = "C:/Users/sofma/server-dir/";
     string clientName;
     int roomId;
@@ -132,6 +131,28 @@ class CommandHandler {
         }
     }
 
+    /*void broadcastFile(const string& filename, SOCKET& senderSocket) {
+        string filePath = baseDirectory + filename;
+        string message = ".i " + filename;
+        for (SOCKET client : roomsClients[roomId]) {
+            if (client != senderSocket) {
+                NetworkUtils::sendMessage(client, filename);
+                NetworkUtils::sendFile(filePath, client);
+            }
+        }
+    }*/
+
+    void broadcastFile(const string& filename, SOCKET& senderSocket, const string& message) {
+        string filePath = baseDirectory + filename; // Ensure the file path is correct
+        for (SOCKET client : roomsClients[roomId]) {
+            if (client != senderSocket) {
+                NetworkUtils::sendMessage(client, message);
+                NetworkUtils::sendFile(filePath, client);
+            }
+        }
+    }
+
+
     void processMessages() {
         while (broadcasting) {
             unique_lock<mutex> lock(messageQueueMutex);
@@ -148,21 +169,17 @@ class CommandHandler {
 
     void quitRoom() {
         lock_guard<mutex> lock(consoleMutex);
-        bool successful = false;
+
         auto& clients = roomsClients[roomId];
         auto it = find(clients.begin(), clients.end(), clientSocket);
         if (it != clients.end()) {
             clients.erase(it);
-            successful = true;
-        }
-
-        if (successful) {
+            
             //NetworkUtils::sendMessage(clientSocket, "You left the room");
             cout << clientName << " left ROOM " + to_string(roomId) << endl;
             string leaveMessage = clientName + " left the room";
             addMessageToQueue(leaveMessage);
         }
-
     }
 
 public:
@@ -175,14 +192,7 @@ public:
         clientName = clientInfo.substr(0, delimiterPos);
         roomId = stoi(clientInfo.substr(delimiterPos + 1));
 
-        serverDirectory = baseDirectory + clientName;
-
         cout << "Accepted connection from " << clientName << endl;
-        cout << "Working directory: " << serverDirectory << endl;
-
-        if (!fs::exists(serverDirectory)) {
-            create_directory(serverDirectory);
-        }
 
         broadcastThread = thread(&CommandHandler::processMessages, this);
     }
@@ -249,6 +259,7 @@ public:
                 if (!filename.empty()) {
                     string filePath = baseDirectory + filename;
                     cout << NetworkUtils::receiveFile(filePath, clientSocket) << endl;
+                    broadcastFile(filename, clientSocket, message); // Broadcast the file
                 }
             }
 
