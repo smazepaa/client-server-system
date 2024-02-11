@@ -119,6 +119,60 @@ public:
             }
         }
     }
+
+    void handleCommands(const string& message) {
+        stringstream ss(message);
+        string command;
+        getline(ss, command, ' ');
+
+        if (command == ".m") {
+            string messageContent;
+            getline(ss, messageContent);
+            if (!messageContent.empty()) {
+                cout << "You: " << messageContent << endl;
+                NetworkUtils::sendMessage(clientSocket, messageContent);
+            }
+            else {
+                cout << "Cannot send an empty message." << endl;
+            }
+        }
+        else if (command == ".q") {
+            string confirmation;
+            cout << "Do you want to leave the room? [y/n] ";
+            getline(cin, confirmation);
+            if (confirmation == "y") {
+                NetworkUtils::sendMessage(clientSocket, ".q");
+                // cout << NetworkUtils::receiveMessage(clientSocket) << endl;
+                cout << "you left the room" << endl;
+
+                string newRoomId;
+                cout << "Enter new room ID to join or type '.q' to quit: ";
+                getline(cin, newRoomId);
+                if (newRoomId != ".q") {
+                    NetworkUtils::sendMessage(clientSocket, ".j " + newRoomId);
+                    cout << NetworkUtils::receiveMessage(clientSocket) << endl;
+                }
+            }
+
+        }
+
+        else if (command == ".f") {
+            string filename;
+            getline(ss, filename);
+            if (!filename.empty()) {
+                NetworkUtils::sendMessage(clientSocket, message);
+                string filePath = clientDirectory + "/" + filename;
+                cout << NetworkUtils::sendFile(filePath, clientSocket) << endl;
+            }
+            else {
+                cout << "Enter filename." << endl;
+            }
+        }
+
+        else {
+            cout << "Unknown command or message not prefixed correctly. Please use .m to send a message." << endl;
+        }
+    }
 };
 
 class Client {
@@ -156,50 +210,12 @@ public:
             string message;
             while (true) {
                 getline(cin, message);
-                handleCommands(message);
+                cmdHandler.handleCommands(message);
             }
         }
     }
 
-    void handleCommands(const string& message) {
-        stringstream ss(message);
-        string command;
-        getline(ss, command, ' ');
-
-        if (command == ".m") {
-            string messageContent;
-            getline(ss, messageContent);
-            if (!messageContent.empty()) {
-                cout << "You: " << messageContent << endl;
-                NetworkUtils::sendMessage(clientSocket, messageContent);
-            }
-            else {
-                cout << "Cannot send an empty message." << endl;
-            }
-        }
-        else if (command == ".q") {
-            string confirmation;
-            cout << "Do you want to leave the room? [y/n] ";
-            getline(cin, confirmation);
-            if (confirmation == "y") {
-                NetworkUtils::sendMessage(clientSocket, ".q");
-                // cout << NetworkUtils::receiveMessage(clientSocket) << endl;
-                cout << "you left the room" << endl;
-
-                string newRoomId;
-                cout << "Enter new room ID to join or type '.q' to quit: ";
-                getline(cin, newRoomId);
-                if (newRoomId != ".q") {
-                    NetworkUtils::sendMessage(clientSocket, ".j " + newRoomId);
-                    cout << NetworkUtils::receiveMessage(clientSocket) << endl;
-                }
-            }
-
-        }
-        else {
-            cout << "Unknown command or message not prefixed correctly. Please use .m to send a message." << endl;
-        }
-    }
+    
 };
 
 int main() {

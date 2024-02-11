@@ -228,6 +228,7 @@ public:
             else if (message == ".q") {
                 quitRoom();
             }
+
             else if (message._Starts_with(".j ")) {
                 string roomIdStr = message.substr(3);
                 roomId = stoi(roomIdStr);
@@ -242,6 +243,15 @@ public:
                 string confirmation = "Joined room " + roomIdStr;
                 NetworkUtils::sendMessage(clientSocket, confirmation);
             }
+
+            else if (message._Starts_with(".f")) {
+                string filename = message.substr(3);
+                if (!filename.empty()) {
+                    string filePath = baseDirectory + filename;
+                    cout << NetworkUtils::receiveFile(filePath, clientSocket) << endl;
+                }
+            }
+
             else {
                 string fullMessage = clientName + ": " + message;
                 addMessageToQueue(fullMessage);
