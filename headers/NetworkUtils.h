@@ -78,8 +78,9 @@ public:
         char buffer[bufferSize];
         string eofMarker = "<EOF>";
         string fileData;
+        bool found = false;
 
-        while (true) {
+        while (!found) {
             cout << "start receiving" << endl;
             memset(buffer, 0, bufferSize);
             int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
@@ -95,6 +96,7 @@ public:
             size_t eofPos = fileData.find(eofMarker);
             if (eofPos != string::npos) {
                 outputFile.write(fileData.c_str(), eofPos); // remove end-of-file marker
+                found = true;
                 break;
 
                 // write to file if buffer is full and eof marker not found

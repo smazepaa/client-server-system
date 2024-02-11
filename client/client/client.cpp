@@ -158,11 +158,11 @@ public:
         }
         else if (command == ".f") {
             string filename;
-            getline(ss, filename); // Extract the filename from the command
+            getline(ss, filename);
             string filepath = clientDirectory + "/" + filename;
 
-            NetworkUtils::sendMessage(clientSocket, ".f " + filename); // Send the command to notify about file transfer
-            string response = NetworkUtils::sendFile(filepath, clientSocket); // Send the actual file
+            NetworkUtils::sendMessage(clientSocket, ".f " + filename);
+            string response = NetworkUtils::sendFile(filepath, clientSocket);
             cout << response << endl;
         }
 
@@ -178,22 +178,19 @@ class Client {
     SOCKET clientSocket;
 
     string extractFileNameFromNotice(const string& message) {
-        size_t startPos = message.find(": ") + 2; // Start position of filename (after ": ")
-        size_t endPos = message.find(". Accept? [Y/N]"); // End position (before ". Accept? [Y/N]")
+        size_t startPos = message.find(": ") + 2; 
+        size_t endPos = message.find(". Accept? [Y/N]");
         if (startPos != string::npos && endPos != string::npos) {
             return message.substr(startPos, endPos - startPos);
         }
-        return ""; // Return empty string if pattern not found
+        return "";
     }
 
 
 public:
 
-    // New members to track file transfer response
     bool expectingFileTransferResponse = false;
     string expectedFileName;
-
-
 
     Client() : connManager(),
         cmdHandler(move(connManager.getClientSocket())) {
@@ -216,18 +213,16 @@ public:
             }
 
             if (message._Starts_with("Incoming file: ")) {
-                expectedFileName = extractFileNameFromNotice(message); // Implement this function to extract the filename
-                cout << message << endl; // Show the message to the user
-                expectingFileTransferResponse = true; // Set the flag to true to indicate we are now expecting a file transfer response
+                expectedFileName = extractFileNameFromNotice(message);
+                cout << message << endl;
+                expectingFileTransferResponse = true;
             }
             else if (!expectingFileTransferResponse) {
-                // If we are not expecting a file transfer response, just print the message
                 cout << message << endl;
             }
         }
     }
 
-    // Add methods to handle file transfer response
     bool isExpectingFileTransferResponse() const {
         return expectingFileTransferResponse;
     }
@@ -244,7 +239,7 @@ public:
     void processInput() {
         if (cmdHandler.isReady()) {
             thread receiveThread(&Client::receiveMessages, this);
-            receiveThread.detach(); // We no longer need to join this thread
+            receiveThread.detach();
 
             string message;
             while (true) {

@@ -261,13 +261,19 @@ public:
 
             else if (message._Starts_with(".accept ")) {
                 string filename = message.substr(8);
-                cout << filename << endl;
-                string path = baseDirectory + filename;
+                string path = baseDirectory + "/" + filename;
 
-                // Send the file to the client who accepted it
-                string response = NetworkUtils::sendFile(path, clientSocket);
-                cout << path << response << endl;
+                // Ensure the file exists before attempting to send it
+                if (fs::exists(path)) {
+                    cout << "Sending file to client: " << filename << endl;
+                    string response = NetworkUtils::sendFile(path, clientSocket);
+                    cout << response << endl;
+                }
+                else {
+                    cerr << "File does not exist: " << filename << endl;
+                }
             }
+
             else if (message._Starts_with(".reject ")) {
                 cout << clientName << " rejected the file." << endl;
             }
