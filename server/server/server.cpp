@@ -148,21 +148,15 @@ class CommandHandler {
 
     void quitRoom() {
         lock_guard<mutex> lock(consoleMutex);
-        bool successful = false;
         auto& clients = roomsClients[roomId];
         auto it = find(clients.begin(), clients.end(), clientSocket);
         if (it != clients.end()) {
             clients.erase(it);
-            successful = true;
-        }
-
-        if (successful) {
             //NetworkUtils::sendMessage(clientSocket, "You left the room");
             cout << clientName << " left ROOM " + to_string(roomId) << endl;
             string leaveMessage = clientName + " left the room";
             addMessageToQueue(leaveMessage);
         }
-        
     }
 
 public:
@@ -209,6 +203,7 @@ public:
         while (broadcasting) {
             string message = NetworkUtils::receiveMessage(clientSocket);
             cout << message << endl;
+
             if (message == "") {
                 lock_guard<mutex> lock(consoleMutex);
                 cout << clientName << " disconnected.\n";
@@ -229,6 +224,7 @@ public:
             else if (message == ".q") {
                 quitRoom();
             }
+
             else if (message._Starts_with(".j ")) {
                 string roomIdStr = message.substr(3);
                 roomId = stoi(roomIdStr);
@@ -259,11 +255,10 @@ public:
                 }
             }
 
-            else if (message._Starts_with(".accept ")) {
-                string filename = message.substr(8);
+            else if (message._Starts_with(".a ")) {
+                string filename = message.substr(3);
                 string path = baseDirectory + "/" + filename;
 
-                // Ensure the file exists before attempting to send it
                 if (fs::exists(path)) {
                     cout << "Sending file to client: " << filename << endl;
                     string response = NetworkUtils::sendFile(path, clientSocket);
@@ -274,7 +269,7 @@ public:
                 }
             }
 
-            else if (message._Starts_with(".reject ")) {
+            else if (message == ".r ") {
                 cout << clientName << " rejected the file." << endl;
             }
 

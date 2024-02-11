@@ -189,7 +189,7 @@ class Client {
 
 public:
 
-    bool expectingFileTransferResponse = false;
+    bool expectingFile = false;
     string expectedFileName;
 
     Client() : connManager(),
@@ -215,26 +215,13 @@ public:
             if (message._Starts_with("Incoming file: ")) {
                 expectedFileName = extractFileNameFromNotice(message);
                 cout << message << endl;
-                expectingFileTransferResponse = true;
+                expectingFile = true;
             }
-            else if (!expectingFileTransferResponse) {
+            else if (!expectingFile) {
                 cout << message << endl;
             }
         }
     }
-
-    bool isExpectingFileTransferResponse() const {
-        return expectingFileTransferResponse;
-    }
-
-    void setExpectingFileTransferResponse(bool expecting) {
-        expectingFileTransferResponse = expecting;
-    }
-
-    string getExpectedFileName() const {
-        return expectedFileName;
-    }
-
 
     void processInput() {
         if (cmdHandler.isReady()) {
@@ -245,17 +232,17 @@ public:
             while (true) {
                 getline(cin, message);
 
-                if (isExpectingFileTransferResponse()) {
+                if (expectingFile) {
                     if (message == "y" || message == "Y") {
-                        NetworkUtils::sendMessage(clientSocket, ".accept " + getExpectedFileName());
-                        string path = cmdHandler.clientDirectory + "/" + getExpectedFileName();
+                        NetworkUtils::sendMessage(clientSocket, ".a " + expectedFileName);
+                        string path = cmdHandler.clientDirectory + "/" + expectedFileName;
                         cout << path << endl;
                         cout << NetworkUtils::receiveFile(path, clientSocket) << endl;
                     }
                     else if (message == "n" || message == "N") {
-                        NetworkUtils::sendMessage(clientSocket, ".reject " + getExpectedFileName());
+                        NetworkUtils::sendMessage(clientSocket, ".r ");
                     }
-                    setExpectingFileTransferResponse(false); // Reset the flag after handling the response
+                    expectingFile = false; // Reset the flag after handling the response
                 }
                 else {
                     cmdHandler.handleCommands(message);
