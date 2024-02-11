@@ -257,17 +257,12 @@ public:
 
             else if (message._Starts_with(".a ")) {
                 string filename = message.substr(3);
-                string path = baseDirectory + "/" + filename;
+                string path = baseDirectory + filename;
 
-                if (fs::exists(path)) {
-                    cout << "Sending file to client: " << filename << endl;
-                    string response = NetworkUtils::sendFile(path, clientSocket);
-                    cout << response << endl;
-                }
-                else {
-                    cerr << "File does not exist: " << filename << endl;
-                }
+                string sendResult = NetworkUtils::sendFile(path, clientSocket);
+                cout << "Send result: " << sendResult << endl;
             }
+
 
             else if (message == ".r ") {
                 cout << clientName << " rejected the file." << endl;
