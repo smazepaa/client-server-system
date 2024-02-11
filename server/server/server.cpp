@@ -232,7 +232,6 @@ public:
             else if (message._Starts_with(".j ")) {
                 string roomIdStr = message.substr(3);
                 roomId = stoi(roomIdStr);
-                // Join new room
 
                 lock_guard<mutex> lock(consoleMutex);
                 roomsClients[roomId].push_back(clientSocket);
@@ -246,12 +245,31 @@ public:
 
             else if (message._Starts_with(".f ")) {
                 string filename = message.substr(3);
-                cout << filename << endl;
-                string path = serverDirectory + "/" + filename;
-                cout << path << endl;
+
+                string path = baseDirectory + filename;
 
                 string response = NetworkUtils::receiveFile(path, clientSocket);
                 cout << response << endl;
+
+                string fileNotice = "Incoming file: " + filename + ". Accept? [Y/N]";
+                for (SOCKET client : roomsClients[roomId]) {
+                    if (client != clientSocket) {
+                        NetworkUtils::sendMessage(client, fileNotice);
+                    }
+                }
+            }
+
+            else if (message._Starts_with(".accept ")) {
+                string filename = message.substr(8);
+                cout << filename << endl;
+                string path = baseDirectory + filename;
+
+                // Send the file to the client who accepted it
+                string response = NetworkUtils::sendFile(path, clientSocket);
+                cout << path << response << endl;
+            }
+            else if (message._Starts_with(".reject ")) {
+                cout << clientName << " rejected the file." << endl;
             }
 
             else {
@@ -261,6 +279,7 @@ public:
         }
         closesocket(clientSocket);
     }
+
 };
 
 
