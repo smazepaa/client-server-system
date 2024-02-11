@@ -148,15 +148,21 @@ class CommandHandler {
 
     void quitRoom() {
         lock_guard<mutex> lock(consoleMutex);
+        bool successful = false;
         auto& clients = roomsClients[roomId];
         auto it = find(clients.begin(), clients.end(), clientSocket);
         if (it != clients.end()) {
             clients.erase(it);
+            successful = true;
+        }
+
+        if (successful) {
             //NetworkUtils::sendMessage(clientSocket, "You left the room");
             cout << clientName << " left ROOM " + to_string(roomId) << endl;
             string leaveMessage = clientName + " left the room";
             addMessageToQueue(leaveMessage);
         }
+
     }
 
 public:
@@ -199,11 +205,9 @@ public:
         string connectionMessage = clientName + " joined ROOM " + to_string(roomId);
         cout << connectionMessage << endl;
         addMessageToQueue(connectionMessage);
-        
+
         while (broadcasting) {
             string message = NetworkUtils::receiveMessage(clientSocket);
-            cout << message << endl;
-
             if (message == "") {
                 lock_guard<mutex> lock(consoleMutex);
                 cout << clientName << " disconnected.\n";
@@ -224,10 +228,10 @@ public:
             else if (message == ".q") {
                 quitRoom();
             }
-
             else if (message._Starts_with(".j ")) {
                 string roomIdStr = message.substr(3);
                 roomId = stoi(roomIdStr);
+                // Join new room
 
                 lock_guard<mutex> lock(consoleMutex);
                 roomsClients[roomId].push_back(clientSocket);
@@ -238,36 +242,6 @@ public:
                 string confirmation = "Joined room " + roomIdStr;
                 NetworkUtils::sendMessage(clientSocket, confirmation);
             }
-
-            else if (message._Starts_with(".f ")) {
-                string filename = message.substr(3);
-
-                string path = baseDirectory + filename;
-
-                string response = NetworkUtils::receiveFile(path, clientSocket);
-                cout << response << endl;
-
-                string fileNotice = "Incoming file: " + filename + ". Accept? [Y/N]";
-                for (SOCKET client : roomsClients[roomId]) {
-                    if (client != clientSocket) {
-                        NetworkUtils::sendMessage(client, fileNotice);
-                    }
-                }
-            }
-
-            else if (message._Starts_with(".a ")) {
-                string filename = message.substr(3);
-                string path = baseDirectory + filename;
-
-                string sendResult = NetworkUtils::sendFile(path, clientSocket);
-                cout << "Send result: " << sendResult << endl;
-            }
-
-
-            else if (message == ".r ") {
-                cout << clientName << " rejected the file." << endl;
-            }
-
             else {
                 string fullMessage = clientName + ": " + message;
                 addMessageToQueue(fullMessage);
@@ -275,7 +249,6 @@ public:
         }
         closesocket(clientSocket);
     }
-
 };
 
 
