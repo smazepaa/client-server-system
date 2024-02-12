@@ -82,7 +82,8 @@ class CommandHandler {
     string baseDirectory = "C:/Users/sofma/client-dir/";
     string clientDirectory;
 
-    
+    bool waitingFile = false;
+    string expectedFilename;
 
 
 public:
@@ -129,6 +130,7 @@ public:
         // Assume NetworkUtils has a method to receive a file
         string status = NetworkUtils::receiveFile(filePath, clientSocket);
         cout << status << endl;
+        waitingFile = false;
     }
 
     void handleCommands(const string& message) {
@@ -180,10 +182,23 @@ public:
                 cout << "Enter filename." << endl;
             }
         }
+        else if (command == ".y") {
+            if (waitingFile) {
+                NetworkUtils::sendMessage(clientSocket, message);
+                cout << "sending the file" << endl;
+                receiveFile(expectedFilename);
+            }
+             
+        }
 
         else {
             cout << "Unknown command or message not prefixed correctly. Please use .m to send a message." << endl;
         }
+    }
+
+    void waitForFile(const string& filename) {
+        this->expectedFilename = filename;
+        this->waitingFile = true;
     }
 };
 
@@ -215,7 +230,9 @@ public:
             if (message._Starts_with(".f ")) {
                 // Extract the filename from the message
                 string filename = message.substr(3);
-                cmdHandler.receiveFile(filename);
+                //cmdHandler.receiveFile(filename);
+                cout << "do you want to accept the file?" << endl;
+                cmdHandler.waitForFile(filename);
             }
             else {
                 cout << message << endl;

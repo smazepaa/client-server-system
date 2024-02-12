@@ -109,6 +109,9 @@ class CommandHandler {
     string clientName;
     int roomId;
 
+    bool fileAccepted = false;
+    string fileToSend;
+
     mutex messageQueueMutex;
     condition_variable messageAvailableCondition;
     queue<string> messageQueue;
@@ -147,7 +150,13 @@ class CommandHandler {
         for (SOCKET client : roomsClients[roomId]) {
             if (client != senderSocket) {
                 NetworkUtils::sendMessage(client, message);
-                NetworkUtils::sendFile(filePath, client);
+                //string message = NetworkUtils::receiveMessage(client);
+                /*if (message == ".y") {
+                    NetworkUtils::sendFile(filePath, client);
+                }
+                else {
+                    cout << "file declined" << endl;
+                }*/
             }
         }
     }
@@ -255,12 +264,19 @@ public:
             }
 
             else if (message._Starts_with(".f")) {
-                string filename = message.substr(3);
-                if (!filename.empty()) {
-                    string filePath = baseDirectory + filename;
+                fileToSend = message.substr(3);
+                if (!fileToSend.empty()) {
+                    string filePath = baseDirectory + fileToSend;
                     cout << NetworkUtils::receiveFile(filePath, clientSocket) << endl;
-                    broadcastFile(filename, clientSocket, message); // Broadcast the file
+                    broadcastFile(fileToSend, clientSocket, message); // Broadcast the file
                 }
+            }
+
+            else if (message == ".y") {
+                cout << "file accepted by " << clientName << endl;
+                string filePath = baseDirectory + fileToSend;
+
+                NetworkUtils::sendFile(filePath, clientSocket);
             }
 
             else {
