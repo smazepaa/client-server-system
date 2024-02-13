@@ -162,6 +162,9 @@ class CommandHandler {
             clients.erase(it);
             string leaveMessage = clientName + " left the room";
             addMessageToQueue(leaveMessage);
+
+            string confirmation = "You left ROOM " + to_string(roomId);
+            NetworkUtils::sendMessage(clientSocket, confirmation);
         }
     }
 

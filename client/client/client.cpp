@@ -81,7 +81,6 @@ class CommandHandler {
     SOCKET clientSocket;
     string baseDirectory = "C:/Users/sofma/client-dir/";
     string clientDirectory;
-
     bool inRoom = false;
 
     void quitRoom() {
@@ -91,7 +90,7 @@ class CommandHandler {
         cout << "\033[A\033[2K";
         if (confirmation == "y") {
             NetworkUtils::sendMessage(clientSocket, ".q");
-            cout << "You left the room" << endl;
+            // cout << "You left the room." << endl;
             inRoom = false;
         }
         else if (confirmation == "n") {
@@ -99,6 +98,16 @@ class CommandHandler {
         }
         else {
             cout << "Invalid response." << endl;
+        }
+    }
+
+    void joinRoom(const string& newRoomId) {
+        if (newRoomId != "") {
+            NetworkUtils::sendMessage(clientSocket, ".j " + newRoomId);
+            inRoom = true;
+        }
+        else {
+            cout << "Cannot proceed without the room id." << endl;
         }
     }
 
@@ -171,13 +180,11 @@ public:
         else if (command == ".j") {
             string newRoomId;
             getline(ss, newRoomId);
-            if (newRoomId != "") {
-                NetworkUtils::sendMessage(clientSocket, ".j " + newRoomId);
-                inRoom = true;
+
+            if (inRoom) {
+                quitRoom();
             }
-            else {
-                cout << "Cannot proceed without the room id." << endl;
-            }
+            joinRoom(newRoomId);
         }
 
         else {
