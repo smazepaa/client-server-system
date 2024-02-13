@@ -139,6 +139,19 @@ class CommandHandler {
         }
     }
 
+    void broadcastFile(const string& filename, SOCKET& senderSocket, const string& message) {
+        string filePath = baseDirectory + filename;
+        for (SOCKET client : roomsClients[roomId]) {
+            if (client != senderSocket) {
+                string notification = clientName + ": sending the file " + filename;
+                NetworkUtils::sendMessage(client, notification);
+                NetworkUtils::sendMessage(client, message);
+                NetworkUtils::sendFile(filePath, client);
+            }
+        }
+        remove(filePath);
+    }
+
     void processMessages() {
         while (broadcasting) {
             unique_lock<mutex> lock(messageQueueMutex);
@@ -185,7 +198,6 @@ public:
         extractInfo(clientInfo);
 
         cout << "Accepted connection from " << clientName << endl;
-
         joinRoom();
 
         broadcastThread = thread(&CommandHandler::processMessages, this);
@@ -204,12 +216,10 @@ public:
         return this->clientSocket != INVALID_SOCKET;
     }
 
-
     void handleClient() {
         while (broadcasting) {
             string message = NetworkUtils::receiveMessage(clientSocket);
             if (message == "") {
-
                 lock_guard<mutex> lock(consoleMutex);
                 quitRoom();
                 cout << clientName << " disconnected.\n";
@@ -233,7 +243,15 @@ public:
 
                 string confirmation = "You joined ROOM " + roomIdStr;
                 NetworkUtils::sendMessage(clientSocket, confirmation);
+            }
 
+            else if (message._Starts_with(".f")) {
+                string filename = message.substr(3);
+                if (!filename.empty()) {
+                    string filePath = baseDirectory + filename;
+                    cout << NetworkUtils::receiveFile(filePath, clientSocket) << endl;
+                    broadcastFile(filename, clientSocket, message);
+                }
             }
 
             else {

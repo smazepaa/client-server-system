@@ -61,14 +61,22 @@ public:
         return totalData;
     }
 
-    static string receiveFile(const string& outputFilePath, SOCKET& clientSocket) {
+    static string receiveFile(const string& basePath, SOCKET& clientSocket) {
+        string outputFilePath = basePath;
+        size_t delimiterPos = outputFilePath.find('.');
+        string filename = outputFilePath.substr(0, delimiterPos);
+        string extention = outputFilePath.substr(delimiterPos + 1);
 
-        if (fs::exists(outputFilePath)) {
-            string response = "File already exists: " + outputFilePath;
-            return response;
+        // Check if file exists and adjust filename
+        int fileIndex = 1; // Start numbering from 1
+        while (fs::exists(outputFilePath)) {
+            // Generate new file name with index
+            outputFilePath = filename + "(" + std::to_string(fileIndex) + ")." + extention;
+            fileIndex++;
         }
 
-        ofstream outputFile(outputFilePath, ios::binary);
+        ofstream outputFile;
+        outputFile.open(outputFilePath, ios::binary);
         if (!outputFile.is_open()) {
             string response = "Failed to open file for writing: " + outputFilePath;
             return response;
@@ -104,7 +112,8 @@ public:
         }
 
         outputFile.close();
-        string response = "File transfer completed and saved to: " + outputFilePath;
+        string response = "File received.";
+        //string response = "File transfer completed and saved to: " + outputFilePath;
         return response;
     }
 

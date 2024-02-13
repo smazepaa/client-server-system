@@ -173,6 +173,21 @@ public:
             }
             
         }
+
+        else if (command == ".f") {
+            string filename;
+            getline(ss, filename);
+            if (!filename.empty()) {
+                cout << "You: sending the file " << filename << endl;
+                NetworkUtils::sendMessage(clientSocket, message);
+                string filePath = clientDirectory + "/" + filename;
+                cout << NetworkUtils::sendFile(filePath, clientSocket) << endl;
+            }
+            else {
+                cout << "Cannot proceed without the filename." << endl;
+            }
+        }
+
         else if (command == ".q") {
             quitRoom();
         }
@@ -194,6 +209,13 @@ public:
                 "-> .q to leave the room\n" << "-> .j <id> to join a room" << endl;
             cout << endl;
         }
+    }
+
+    void receiveFile(const string& filename) {
+        string filePath = clientDirectory + "/" + filename;
+        // cout << "Receiving file: " << filename << endl;
+        string status = NetworkUtils::receiveFile(filePath, clientSocket);
+        cout << status << endl;
     }
 };
 
@@ -231,7 +253,14 @@ public:
                 cerr << "Server disconnected.\n";
                 return;
             }
-            cout << message << endl;
+
+            if (message._Starts_with(".f ")) {
+                string filename = message.substr(3);
+                cmdHandler.receiveFile(filename);
+            }
+            else {
+                cout << message << endl;
+            }
         }
     }
 
