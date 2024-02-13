@@ -105,7 +105,6 @@ public:
 class CommandHandler {
 
     SOCKET clientSocket;
-    string serverDirectory;
     string baseDirectory = "C:/Users/sofma/server-dir/";
     string clientName;
     int roomId;
@@ -114,8 +113,16 @@ class CommandHandler {
     condition_variable messageAvailableCondition;
     queue<string> messageQueue;
 
+    mutex roomManagementMutex;
+
     thread broadcastThread;
     bool broadcasting = true;
+
+    void extractInfo(const string& info) {
+        size_t delimiterPos = info.find(';');
+        clientName = info.substr(0, delimiterPos);
+        roomId = stoi(info.substr(delimiterPos + 1));
+    }
 
     void addMessageToQueue(const string& message) {
         lock_guard<mutex> lock(messageQueueMutex);
@@ -123,7 +130,7 @@ class CommandHandler {
         messageAvailableCondition.notify_one();
     }
 
-    void broadcastMessage(const string& message, SOCKET senderSocket) {
+    void broadcastMessage(const string& message, SOCKET& senderSocket) {
         lock_guard<mutex> lock(consoleMutex);
         for (SOCKET client : roomsClients[roomId]) {
             if (client != senderSocket) {
@@ -147,22 +154,23 @@ class CommandHandler {
     }
 
     void quitRoom() {
-        lock_guard<mutex> lock(consoleMutex);
-        bool successful = false;
+        lock_guard<mutex> lock(roomManagementMutex);
         auto& clients = roomsClients[roomId];
         auto it = find(clients.begin(), clients.end(), clientSocket);
         if (it != clients.end()) {
-            clients.erase(it);
-            successful = true;
-        }
-
-        if (successful) {
-            //NetworkUtils::sendMessage(clientSocket, "You left the room");
             cout << clientName << " left ROOM " + to_string(roomId) << endl;
+            clients.erase(it);
             string leaveMessage = clientName + " left the room";
             addMessageToQueue(leaveMessage);
         }
-        
+    }
+
+    void joinRoom() {
+        lock_guard<mutex> lock(roomManagementMutex);
+        roomsClients[roomId].push_back(clientSocket);
+        string connectionMessage = clientName + " joined ROOM " + to_string(roomId);
+        cout << connectionMessage << endl;
+        addMessageToQueue(connectionMessage);
     }
 
 public:
@@ -171,18 +179,11 @@ public:
 
     CommandHandler(SOCKET& client) : clientSocket(client) {
         string clientInfo = NetworkUtils::receiveMessage(clientSocket);
-        size_t delimiterPos = clientInfo.find(';');
-        clientName = clientInfo.substr(0, delimiterPos);
-        roomId = stoi(clientInfo.substr(delimiterPos + 1));
-
-        serverDirectory = baseDirectory + clientName;
+        extractInfo(clientInfo);
 
         cout << "Accepted connection from " << clientName << endl;
-        cout << "Working directory: " << serverDirectory << endl;
 
-        if (!fs::exists(serverDirectory)) {
-            create_directory(serverDirectory);
-        }
+        joinRoom();
 
         broadcastThread = thread(&CommandHandler::processMessages, this);
     }
@@ -200,24 +201,15 @@ public:
         return this->clientSocket != INVALID_SOCKET;
     }
 
+
     void handleClient() {
-        roomsClients[roomId].push_back(clientSocket);
-        string connectionMessage = clientName + " joined ROOM " + to_string(roomId);
-        cout << connectionMessage << endl;
-        addMessageToQueue(connectionMessage);
-        
         while (broadcasting) {
             string message = NetworkUtils::receiveMessage(clientSocket);
             if (message == "") {
+
                 lock_guard<mutex> lock(consoleMutex);
+                quitRoom();
                 cout << clientName << " disconnected.\n";
-                string message = clientName + " left the room";
-                addMessageToQueue(message);
-                auto& clients = roomsClients[roomId];
-                auto it = find(clients.begin(), clients.end(), clientSocket);
-                if (it != clients.end()) {
-                    clients.erase(it);
-                }
 
                 closesocket(clientSocket);
                 clientSocket = INVALID_SOCKET;
@@ -228,20 +220,19 @@ public:
             else if (message == ".q") {
                 quitRoom();
             }
+
             else if (message._Starts_with(".j ")) {
                 string roomIdStr = message.substr(3);
-                roomId = stoi(roomIdStr);
-                // Join new room
+                int newRoomId = stoi(roomIdStr);
 
-                lock_guard<mutex> lock(consoleMutex);
-                roomsClients[roomId].push_back(clientSocket);
-                string connectionMessage = clientName + " joined ROOM " + to_string(roomId);
-                cout << connectionMessage << endl;
-                addMessageToQueue(connectionMessage);
+                roomId = newRoomId;
+                joinRoom();
 
-                string confirmation = "Joined room " + roomIdStr;
+                string confirmation = "You joined ROOM " + roomIdStr;
                 NetworkUtils::sendMessage(clientSocket, confirmation);
+
             }
+
             else {
                 string fullMessage = clientName + ": " + message;
                 addMessageToQueue(fullMessage);
