@@ -83,14 +83,16 @@ class CommandHandler {
     string clientDirectory;
     bool inRoom = false;
 
+    string name, roomId;
+
     void quitRoom() {
         string confirmation;
         cout << "Do you want to leave the room? [y/n] ";
         getline(cin, confirmation);
         cout << "\033[A\033[2K";
+
         if (confirmation == "y") {
             NetworkUtils::sendMessage(clientSocket, ".q");
-            // cout << "You left the room." << endl;
             inRoom = false;
         }
         else if (confirmation == "n") {
@@ -111,6 +113,35 @@ class CommandHandler {
         }
     }
 
+    void sendFile(const string& message, const string& filename) {
+        if (!filename.empty()) {
+            cout << "You: sending the file " << filename << endl;
+            NetworkUtils::sendMessage(clientSocket, message);
+            string filePath = clientDirectory + "/" + filename;
+            cout << NetworkUtils::sendFile(filePath, clientSocket) << endl;
+        }
+        else {
+            cout << "Cannot proceed without the filename." << endl;
+        }
+    }
+
+    void sendMessage(stringstream& ss) {
+        if (inRoom) {
+            string messageContent;
+            getline(ss, messageContent);
+            if (!messageContent.empty()) {
+                cout << "You: " << messageContent << endl;
+                NetworkUtils::sendMessage(clientSocket, messageContent);
+            }
+            else {
+                cout << "Cannot send an empty message." << endl;
+            }
+        }
+        else {
+            cout << "Join a room to send messages." << endl;
+        }
+    }
+
 public:
 
     CommandHandler(SOCKET socket) : clientSocket(socket) {}
@@ -125,26 +156,19 @@ public:
     }
 
     void sendClientName() {
-        string name, roomId;
         while (name == "") {
             cout << "Enter client name: ";
             getline(cin, name);
             if (name != "") {
-                while (roomId == "") {
-                    cout << "Enter room ID: ";
-                    getline(cin, roomId);
-                }
-                cout << "You joined ROOM " << roomId << endl << endl;
-                string clientInfo = name + ";" + roomId;
-                NetworkUtils::sendMessage(clientSocket, clientInfo);
-                inRoom = true;
+                cout << endl;
 
+                NetworkUtils::sendMessage(clientSocket, name);
+             
                 clientDirectory = baseDirectory + name;
                 if (!fs::exists(clientDirectory)) {
                     create_directory(clientDirectory);
                 }
             }
-
             else {
                 cout << "Cannot proceed without client name" << endl;
             }
@@ -159,35 +183,13 @@ public:
         // \033[A moves the cursor up one line, and \033[2K clears the entire line.
 
         if (command == ".m") {
-            if (inRoom) {
-                string messageContent;
-                getline(ss, messageContent);
-                if (!messageContent.empty()) {
-                    cout << "You: " << messageContent << endl;
-                    NetworkUtils::sendMessage(clientSocket, messageContent);
-                }
-                else {
-                    cout << "Cannot send an empty message." << endl;
-                }
-            }
-            else {
-                cout << "Join a room to send messages." << endl;
-            }
-            
+            sendMessage(ss);
         }
 
         else if (command == ".f") {
             string filename;
             getline(ss, filename);
-            if (!filename.empty()) {
-                cout << "You: sending the file " << filename << endl;
-                NetworkUtils::sendMessage(clientSocket, message);
-                string filePath = clientDirectory + "/" + filename;
-                cout << NetworkUtils::sendFile(filePath, clientSocket) << endl;
-            }
-            else {
-                cout << "Cannot proceed without the filename." << endl;
-            }
+            sendFile(message, filename);
         }
 
         else if (command == ".q") {
@@ -207,7 +209,7 @@ public:
         else {
             cout << endl;
             cout << "Unknown command or message not prefixed correctly. Please use\n" <<
-                "-> .m <message> to send a message\n" << "->.f <filename> to send a file\n" <<
+                "-> .m <message> to send a message\n" << "-> .f <filename> to send a file\n" <<
                 "-> .q to leave the room\n" << "-> .j <id> to join a room" << endl;
             cout << endl;
         }
@@ -215,7 +217,6 @@ public:
 
     void receiveFile(const string& filename) {
         string filePath = clientDirectory + "/" + filename;
-        // cout << "Receiving file: " << filename << endl;
         string status = NetworkUtils::receiveFile(filePath, clientSocket);
         cout << status << endl;
         NetworkUtils::sendMessage(clientSocket, ".ack");
@@ -256,7 +257,6 @@ public:
                 cerr << "Server disconnected.\n";
                 return;
             }
-
             if (message._Starts_with(".f ")) {
                 string filename = message.substr(3);
                 cmdHandler.receiveFile(filename);

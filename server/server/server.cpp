@@ -7,18 +7,18 @@
 #include <queue>
 #include<condition_variable>
 #include <winsock2.h>
-#pragma comment(lib, "ws2_32.lib")
 #include "NetworkUtils.h"
+#pragma comment(lib, "ws2_32.lib")
+
 
 using namespace std;
 namespace fs = filesystem;
 using namespace fs;
 
-mutex consoleMutex;
+mutex consoleMutex, fileSendMutex;
 vector<SOCKET> clients;
 map<int, vector<SOCKET>> roomsClients;
 
-mutex fileSendMutex;
 condition_variable allFilesReceivedCondition;
 int expectedAcknowledgements = 0;
 int receivedAcknowledgements = 0;
@@ -114,20 +114,12 @@ class CommandHandler {
     string clientName;
     int roomId;
 
-    mutex messageQueueMutex;
+    mutex messageQueueMutex, roomManagementMutex;
     condition_variable messageAvailableCondition;
     queue<string> messageQueue;
 
-    mutex roomManagementMutex;
-
     thread broadcastThread;
     bool broadcasting = true;
-
-    void extractInfo(const string& info) {
-        size_t delimiterPos = info.find(';');
-        clientName = info.substr(0, delimiterPos);
-        roomId = stoi(info.substr(delimiterPos + 1));
-    }
 
     void addMessageToQueue(const string& message) {
         lock_guard<mutex> lock(messageQueueMutex);
@@ -148,7 +140,7 @@ class CommandHandler {
         string filePath = baseDirectory + filename;
         {
             lock_guard<mutex> lock(fileSendMutex);
-            expectedAcknowledgements = roomsClients[roomId].size() - 1; // Exclude sender
+            expectedAcknowledgements = roomsClients[roomId].size() - 1;
             receivedAcknowledgements = 0;
             cout << expectedAcknowledgements << endl;
         }
@@ -162,7 +154,6 @@ class CommandHandler {
             }
         }
 
-        // Wait for all acknowledgements
         unique_lock<mutex> lock(fileSendMutex);
         allFilesReceivedCondition.wait(lock, [this]() {
             return expectedAcknowledgements == receivedAcknowledgements;
@@ -173,13 +164,12 @@ class CommandHandler {
         remove(filePath);
     }
 
-
     void processMessages() {
         while (broadcasting) {
             unique_lock<mutex> lock(messageQueueMutex);
             messageAvailableCondition.wait(lock, [this] {
-                return !messageQueue.empty() || !broadcasting;
-                });
+                return !messageQueue.empty() || !broadcasting; });
+
             while (!messageQueue.empty()) {
                 string message = messageQueue.front();
                 messageQueue.pop();
@@ -191,6 +181,7 @@ class CommandHandler {
     void quitRoom() {
         lock_guard<mutex> lock(roomManagementMutex);
         auto& clients = roomsClients[roomId];
+
         auto it = find(clients.begin(), clients.end(), clientSocket);
         if (it != clients.end()) {
             cout << clientName << " left ROOM " + to_string(roomId) << endl;
@@ -203,12 +194,47 @@ class CommandHandler {
         }
     }
 
-    void joinRoom() {
+    void joinRoom(const string& message) {
+        string roomIdStr = message.substr(3);
+        int newRoomId = stoi(roomIdStr);
+
+        roomId = newRoomId;
+
         lock_guard<mutex> lock(roomManagementMutex);
         roomsClients[roomId].push_back(clientSocket);
         string connectionMessage = clientName + " joined ROOM " + to_string(roomId);
         cout << connectionMessage << endl;
         addMessageToQueue(connectionMessage);
+
+        string confirmation = "You joined ROOM " + roomIdStr;
+        NetworkUtils::sendMessage(clientSocket, confirmation);
+    }
+
+    void sendFile(const string& message) {
+        string filename = message.substr(3);
+        if (!filename.empty()) {
+            string filePath = baseDirectory + filename;
+            cout << NetworkUtils::receiveFile(filePath, clientSocket) << endl;
+            broadcastFile(filename, clientSocket, message);
+        }
+    }
+
+    void handleDisconnect() {
+        lock_guard<mutex> lock(consoleMutex);
+        quitRoom();
+        cout << clientName << " disconnected.\n";
+
+        closesocket(clientSocket);
+        clientSocket = INVALID_SOCKET;
+    }
+
+    void ackReceive() {
+        lock_guard<mutex> lock(fileSendMutex);
+        receivedAcknowledgements++;
+        cout << "received" << receivedAcknowledgements << endl;
+        if (receivedAcknowledgements == expectedAcknowledgements) {
+            allFilesReceivedCondition.notify_one();
+        }
     }
 
 public:
@@ -216,11 +242,9 @@ public:
     CommandHandler() : clientSocket(INVALID_SOCKET) {}
 
     CommandHandler(SOCKET& client) : clientSocket(client) {
-        string clientInfo = NetworkUtils::receiveMessage(clientSocket);
-        extractInfo(clientInfo);
 
+        clientName = NetworkUtils::receiveMessage(clientSocket);
         cout << "Accepted connection from " << clientName << endl;
-        joinRoom();
 
         broadcastThread = thread(&CommandHandler::processMessages, this);
     }
@@ -242,13 +266,7 @@ public:
         while (broadcasting) {
             string message = NetworkUtils::receiveMessage(clientSocket);
             if (message == "") {
-                lock_guard<mutex> lock(consoleMutex);
-                quitRoom();
-                cout << clientName << " disconnected.\n";
-
-                closesocket(clientSocket);
-                clientSocket = INVALID_SOCKET;
-
+                handleDisconnect();
                 return;
             }
 
@@ -257,35 +275,16 @@ public:
             }
 
             else if (message._Starts_with(".j ")) {
-                string roomIdStr = message.substr(3);
-                int newRoomId = stoi(roomIdStr);
-
-                roomId = newRoomId;
-                joinRoom();
-
-                string confirmation = "You joined ROOM " + roomIdStr;
-                NetworkUtils::sendMessage(clientSocket, confirmation);
+                joinRoom(message);
             }
 
             else if (message._Starts_with(".f")) {
-                string filename = message.substr(3);
-                if (!filename.empty()) {
-                    string filePath = baseDirectory + filename;
-                    cout << NetworkUtils::receiveFile(filePath, clientSocket) << endl;
-                    broadcastFile(filename, clientSocket, message);
-                }
+                sendFile(message);
             }
 
             else if (message == ".ack") {
-                lock_guard<mutex> lock(fileSendMutex);
-                receivedAcknowledgements++;
-                cout << "received" << receivedAcknowledgements << endl;
-                if (receivedAcknowledgements == expectedAcknowledgements) {
-                    allFilesReceivedCondition.notify_one();
-                }
+                ackReceive();
             }
-
-
 
             else {
                 string fullMessage = clientName + ": " + message;
