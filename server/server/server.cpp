@@ -18,6 +18,11 @@ mutex consoleMutex;
 vector<SOCKET> clients;
 map<int, vector<SOCKET>> roomsClients;
 
+mutex fileSendMutex;
+condition_variable allFilesReceivedCondition;
+int expectedAcknowledgements = 0;
+int receivedAcknowledgements = 0;
+
 class ConnectionManager {
 
     SOCKET serverSocket;
@@ -141,6 +146,13 @@ class CommandHandler {
 
     void broadcastFile(const string& filename, SOCKET& senderSocket, const string& message) {
         string filePath = baseDirectory + filename;
+        {
+            lock_guard<mutex> lock(fileSendMutex);
+            expectedAcknowledgements = roomsClients[roomId].size() - 1; // Exclude sender
+            receivedAcknowledgements = 0;
+            cout << expectedAcknowledgements << endl;
+        }
+
         for (SOCKET client : roomsClients[roomId]) {
             if (client != senderSocket) {
                 string notification = clientName + ": sending the file " + filename;
@@ -149,8 +161,18 @@ class CommandHandler {
                 NetworkUtils::sendFile(filePath, client);
             }
         }
+
+        // Wait for all acknowledgements
+        unique_lock<mutex> lock(fileSendMutex);
+        allFilesReceivedCondition.wait(lock, [this]() {
+            return expectedAcknowledgements == receivedAcknowledgements;
+            });
+
+        cout << "Everyone received the file." << endl;
+        NetworkUtils::sendMessage(senderSocket, "Everyone received the file.");
         remove(filePath);
     }
+
 
     void processMessages() {
         while (broadcasting) {
@@ -253,6 +275,17 @@ public:
                     broadcastFile(filename, clientSocket, message);
                 }
             }
+
+            else if (message == ".ack") {
+                lock_guard<mutex> lock(fileSendMutex);
+                receivedAcknowledgements++;
+                cout << "received" << receivedAcknowledgements << endl;
+                if (receivedAcknowledgements == expectedAcknowledgements) {
+                    allFilesReceivedCondition.notify_one();
+                }
+            }
+
+
 
             else {
                 string fullMessage = clientName + ": " + message;

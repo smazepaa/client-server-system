@@ -130,8 +130,10 @@ public:
             cout << "Enter client name: ";
             getline(cin, name);
             if (name != "") {
-                cout << "Enter room ID: ";
-                getline(cin, roomId);
+                while (roomId == "") {
+                    cout << "Enter room ID: ";
+                    getline(cin, roomId);
+                }
                 cout << "You joined ROOM " << roomId << endl << endl;
                 string clientInfo = name + ";" + roomId;
                 NetworkUtils::sendMessage(clientSocket, clientInfo);
@@ -216,6 +218,7 @@ public:
         // cout << "Receiving file: " << filename << endl;
         string status = NetworkUtils::receiveFile(filePath, clientSocket);
         cout << status << endl;
+        NetworkUtils::sendMessage(clientSocket, ".ack");
     }
 };
 

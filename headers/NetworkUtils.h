@@ -19,131 +19,81 @@ class NetworkUtils {
 
 public:
     static void sendMessage(SOCKET& clientSocket, const string& message) {
-        string dataToSend = message + "<END>"; // End marker
-        const size_t bufferSize = 1024;
-        size_t dataLength = dataToSend.length();
-        size_t sent = 0;
-
-        while (sent < dataLength) {
-            size_t toSend = min(bufferSize, dataLength - sent);
-            int bytesSent = send(clientSocket, dataToSend.c_str() + sent, toSend, 0);
-            if (bytesSent == SOCKET_ERROR) {
-                cerr << "Failed to send data: " << WSAGetLastError() << endl;
-                break;
-            }
-            sent += bytesSent;
-        }
+        int messageLength = static_cast<int>(message.length());
+        send(clientSocket, reinterpret_cast<char*>(&messageLength), sizeof(messageLength), 0);
+        send(clientSocket, message.c_str(), messageLength, 0);
     }
 
     static string receiveMessage(SOCKET& clientSocket) {
-        string totalData;
-        char buffer[1024];
-        const string endMarker = "<END>";
-        size_t found;
+        int messageLength = 0;
+        recv(clientSocket, reinterpret_cast<char*>(&messageLength), sizeof(messageLength), 0);
 
-        while (true) {
-            memset(buffer, 0, 1024);
-            int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (messageLength <= 0) return "";
 
-            if (bytesReceived > 0) {
-                totalData.append(buffer, bytesReceived);
-
-                found = totalData.find(endMarker);
-                if (found != string::npos) {
-                    totalData.erase(found, endMarker.length()); // remove the end marker
-                    break;
-                }
-            }
-            else {
-                break;
-            }
-        }
-        return totalData;
+        string message(messageLength, '\0');
+        recv(clientSocket, &message[0], messageLength, 0);
+        return message;
     }
 
     static string receiveFile(const string& basePath, SOCKET& clientSocket) {
+        int fileSize = 0;
+        recv(clientSocket, reinterpret_cast<char*>(&fileSize), sizeof(fileSize), 0);
+
+        if (fileSize <= 0) return "Invalid file size received";
+
         string outputFilePath = basePath;
         size_t delimiterPos = outputFilePath.find('.');
         string filename = outputFilePath.substr(0, delimiterPos);
         string extention = outputFilePath.substr(delimiterPos + 1);
 
         // Check if file exists and adjust filename
-        int fileIndex = 1; // Start numbering from 1
+        int fileIndex = 1;
         while (fs::exists(outputFilePath)) {
-            // Generate new file name with index
             outputFilePath = filename + "(" + std::to_string(fileIndex) + ")." + extention;
             fileIndex++;
         }
 
-        ofstream outputFile;
-        outputFile.open(outputFilePath, ios::binary);
+        ofstream outputFile(outputFilePath, ios::binary);
         if (!outputFile.is_open()) {
-            string response = "Failed to open file for writing: " + outputFilePath;
-            return response;
+            return "Failed to open file for writing: " + outputFilePath;
         }
 
-        const size_t bufferSize = 1024;
-        char buffer[bufferSize];
-        string eofMarker = "<EOF>";
-        bool eofFound = false;
-
-        while (!eofFound) {
-            memset(buffer, 0, bufferSize);
-            int bytesReceived = recv(clientSocket, buffer, bufferSize, 0);
-
-            if (bytesReceived <= 0) {
-                string response = "File transfer failed";
-                return response;
-            }
-
-            // Check for EOF marker and write only up to the marker
-            for (int i = 0; i < bytesReceived; ++i) {
-                if (string(&buffer[i], &buffer[min(i + eofMarker.length(), static_cast<size_t>(bytesReceived))]) == eofMarker) {
-                    // Write data up to the EOF marker
-                    outputFile.write(buffer, i);
-                    eofFound = true;
-                    break;
-                }
-            }
-
-            if (!eofFound) {
-                outputFile.write(buffer, bytesReceived);
-            }
+        int bytesReceived = 0;
+        char buffer[1024];
+        while (bytesReceived < fileSize) {
+            int chunkSize = recv(clientSocket, buffer, min(static_cast<int>(sizeof(buffer)), fileSize - bytesReceived), 0);
+            if (chunkSize <= 0) break;
+            outputFile.write(buffer, chunkSize);
+            bytesReceived += chunkSize;
         }
 
         outputFile.close();
-        string response = "File received.";
-        //string response = "File transfer completed and saved to: " + outputFilePath;
-        return response;
+        return "File received.";
     }
 
     static string sendFile(const string& filePath, SOCKET& clientSocket) {
-
         if (!exists(filePath)) {
-            string response = "File does not exist: " + filePath;
-            return response;
+            return "File does not exist: " + filePath;
         }
 
         ifstream file(filePath, ios::binary);
         if (!file.is_open()) {
-            string response = "Failed to open file: " + filePath;
-            return response;
+            return "Failed to open file: " + filePath;
         }
 
-        const size_t bufferSize = 1024;
-        char buffer[bufferSize];
+        file.seekg(0, ios::end);
+        int fileSize = static_cast<int>(file.tellg());
+        file.seekg(0, ios::beg);
 
-        while (file.read(buffer, bufferSize) || file.gcount()) {
-            send(clientSocket, buffer, file.gcount(), 0); // Send content by chunks
+        send(clientSocket, reinterpret_cast<char*>(&fileSize), sizeof(fileSize), 0);
+
+        char buffer[1024];
+        while (file.read(buffer, sizeof(buffer)) || file.gcount()) {
+            send(clientSocket, buffer, file.gcount(), 0);
         }
 
         file.close();
-
-        const char* eofMarker = "<EOF>";
-        send(clientSocket, eofMarker, strlen(eofMarker), 0); // Send EOF marker
-
-        string response = "File successfully sent";
-        return response;
+        return "File successfully sent";
     }
 };
 
