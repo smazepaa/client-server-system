@@ -10,6 +10,8 @@ using namespace std;
 namespace fs = std::filesystem;
 using namespace fs;
 
+atomic<bool> bFileReceivingState = false;
+
 class ConnectionManager {
 
     SOCKET clientSocket;
@@ -80,13 +82,10 @@ class CommandHandler {
 
     SOCKET clientSocket;
     string baseDirectory = "C:/Users/sofma/client-dir/";
-    string clientDirectory;
-
-    bool waitingFile = false;
-    string expectedFilename;
-
 
 public:
+
+    string clientDirectory;
 
     CommandHandler(SOCKET socket) : clientSocket(socket) {}
 
@@ -124,15 +123,6 @@ public:
         }
     }
 
-    void receiveFile(const string& filename) {
-        string filePath = clientDirectory + "/" + filename;
-        cout << "Receiving file: " << filename << endl;
-        // Assume NetworkUtils has a method to receive a file
-        string status = NetworkUtils::receiveFile(filePath, clientSocket);
-        cout << status << endl;
-        waitingFile = false;
-    }
-
     void handleCommands(const string& message) {
         stringstream ss(message);
         string command;
@@ -168,37 +158,19 @@ public:
             }
 
         }
-
         else if (command == ".f") {
             string filename;
             getline(ss, filename);
-            if (!filename.empty()) {
-                NetworkUtils::sendMessage(clientSocket, message);
-                string filePath = clientDirectory + "/" + filename;
-                cout << NetworkUtils::sendFile(filePath, clientSocket) << endl;
-                
-            }
-            else {
-                cout << "Enter filename." << endl;
-            }
-        }
-        else if (command == ".y") {
-            if (waitingFile) {
-                NetworkUtils::sendMessage(clientSocket, message);
-                cout << "sending the file" << endl;
-                receiveFile(expectedFilename);
-            }
-             
+            string filepath = clientDirectory + "/" + filename;
+
+            NetworkUtils::sendMessage(clientSocket, ".f " + filename);
+            string response = NetworkUtils::sendFile(filepath, clientSocket);
+            cout << response << endl;
         }
 
         else {
             cout << "Unknown command or message not prefixed correctly. Please use .m to send a message." << endl;
         }
-    }
-
-    void waitForFile(const string& filename) {
-        this->expectedFilename = filename;
-        this->waitingFile = true;
     }
 };
 
@@ -207,7 +179,21 @@ class Client {
     CommandHandler cmdHandler;
     SOCKET clientSocket;
 
+    string extractFileNameFromNotice(const string& message) {
+        size_t startPos = message.find(": ") + 2;
+        size_t endPos = message.find(". Accept? [Y/N]");
+        if (startPos != string::npos && endPos != string::npos) {
+            return message.substr(startPos, endPos - startPos);
+        }
+        return "";
+    }
+
+
 public:
+
+    bool expectingFile = false;
+    string expectedFileName;
+
     Client() : connManager(),
         cmdHandler(move(connManager.getClientSocket())) {
         clientSocket = connManager.getClientSocket();
@@ -222,37 +208,58 @@ public:
 
     void receiveMessages() {
         while (true) {
-            string message = NetworkUtils::receiveMessage(clientSocket);
-            if (message == "") {
-                cerr << "Server disconnected.\n";
-                return;
+            if (bFileReceivingState) {
+                string path = cmdHandler.clientDirectory + "/" + expectedFileName;
+                // cout << path << endl;
+                cout << NetworkUtils::receiveFile(path, clientSocket) << endl;
+                bFileReceivingState = false;
             }
-            if (message._Starts_with(".f ")) {
-                // Extract the filename from the message
-                string filename = message.substr(3);
-                //cmdHandler.receiveFile(filename);
-                cout << "do you want to accept the file?" << endl;
-                cmdHandler.waitForFile(filename);
-            }
+
             else {
-                cout << message << endl;
+                string message = NetworkUtils::receiveMessage(clientSocket);
+                if (message == "") {
+                    cerr << "Server disconnected.\n";
+                    break;
+                }
+
+                if (message._Starts_with("Incoming file: ")) {
+                    expectedFileName = extractFileNameFromNotice(message);
+                    cout << message << endl;
+                }
+                else {
+                    cout << message << endl;
+                }
             }
+            
         }
     }
-
 
     void processInput() {
         if (cmdHandler.isReady()) {
-            thread receiveThread([this]() { this->receiveMessages(); });
+            thread receiveThread(&Client::receiveMessages, this);
+            receiveThread.detach();
+
             string message;
             while (true) {
                 getline(cin, message);
-                cmdHandler.handleCommands(message);
+
+                if (message == "y" || message == "Y") {
+                    NetworkUtils::sendMessage(clientSocket, ".y " + expectedFileName);
+                    string path = cmdHandler.clientDirectory + "/" + expectedFileName;
+                    cout << path << endl;
+                    bFileReceivingState = true;
+                    // cout << NetworkUtils::receiveFile(path, clientSocket) << endl;
+                }
+                else if (message == "n" || message == "N") {
+                    NetworkUtils::sendMessage(clientSocket, ".n");
+                    bFileReceivingState = false;
+                }
+                else {
+                    cmdHandler.handleCommands(message);
+                }
             }
         }
     }
-
-    
 };
 
 int main() {
