@@ -255,7 +255,7 @@ public:
                 }
             }
 
-            else if (message._Starts_with(".y ")) {
+            else if (message._Starts_with(".a ")) {
                 string filename = message.substr(3);
                 string path = baseDirectory + "/" + filename;
 
@@ -269,7 +269,7 @@ public:
                 }
             }
 
-            else if (message == ".n") {
+            else if (message == ".r ") {
                 cout << clientName << " rejected the file." << endl;
             }
 
