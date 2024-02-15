@@ -1,66 +1,71 @@
-# Client-Server Communication System
+# Chat Application
 
-This document provides instructions for setting up and using a client-server communication system. It covers everything from setting up the connection to using various commands for file management.
+This system is a client-server application designed to enable a chat room environment where users can join rooms, send text messages, and share files within those rooms. It leverages TCP/IP sockets for reliable network communication. The server handles multiple client connections, room management, and message/file distribution using a multithreaded approach to ensure concurrent processing. On the client side, multithreading facilitates simultaneous network communication and user interaction, maintaining responsiveness while sending and receiving data. This architecture allows the system to support multiple users efficiently, providing a seamless chat experience.
 
 ## Setting Up the Connection
-To ensure correct communication between client and server, the server solution should be run first, followed by the client.
+To ensure correct communication between clients and server, the server solution should be run first, followed by clients.
 
 ## Directory Structure
-`server-dir`: The directory on the server where files are stored.
+`server-dir`: The directory on the server where files are temporarily stored.
 
-`client-dir`: The directory on the client used for storing files.
+`client-dir/<clientName>`: The directory on the client used for storing files.
 
 _**Note**: Change these to the appropriate directories on your machine._
 
-## Commands and Responses
-**Syntax**: In the following commands **full filename** should be provided (for files – with both name and file extension, e.g. `text.txt`, for folders – simply their name, e.g. `my-files`). 
-
-Moreover, the filenames **should not contain spaces**.
+## Application Protocol Description
+The protocol includes commands for joining and leaving rooms, sending text messages, and sharing files. Each message sent over the network follows a specific format, where the first part indicates the type of action (e.g., join room, leave room, send message, send file), followed by the necessary parameters such as room ID or file name.
 
 
-### PUT `<filename>`
-Uploads a file from the client directory to the server.
-- **Server Responses**:
-  - **File already exists: `<filepath>`** – uploading the file already present in the server directory.
-  - **Failed to open file for writing: `<filepath>`** - error in creating the file on the server’s end.
-  - **File transfer failed** – caused either by the failure of data receiving or client disconnection.
-  - **File transfer completed** – file successfully transferred and saved to the server directory.
+| Command                   | Message Content            | Example         | Total Length                           | Note                          |
+|---------------------------|----------------------------|-----------------|----------------------------------------|-------------------------------|
+| .m `<Message>`            | `.m` + space + `<Message>` | `.m Hello`      | Variable, (3 + message length) bytes   | User command to send a message. |
+| .q                        | `.q`                       | `.q`            | 2 bytes                                | User command to quit a room.  |
+| .j `<RoomID>`             | `.j` + space + `<RoomID>`  | `.j 123`        | Variable, (3 + id length) bytes        | User command to join a room.  |
+| .f `<Filename>`           | `.f` + space + `<Filename>`| `.f file.txt`   | Variable, (3 + filename length) bytes  | User command to send a file.  |
+| .a                        | `.a`                       | `.a  `          | 2 bytes                                | System command for acknowledging file reception. **Not used by users directly.** |
+| .y `<Filename>`           | `.y` + space + `<Filename>`| `.y file.txt`   | Variable, (3 + filename length) bytes  | System command to confirm file send request. **Not used by users directly.**  |
+| .n                        | `.n`                       | `.n`            | 3 bytes                                | System command to reject file send request. **Not used by users directly.** |
 
-- **Client Responses**:
-  - **File does not exist: `<filepath>`** – the absence of the mentioned file in the client’s directory.
+## Commands - Responses
 
+### Send Message
+- **Command**: `.m`
+- **Usage**: Sends a message to all clients in the same room.
+- **Client Response**: "You: <Message>"
+- **Client Command**: `.m <Message>`
+- **Server Response**: No direct response to the sender.
+- **Response Details**: The message is broadcasted to all clients in the room. 
 
-### LIST
-Requests a list of available files on the server.
-- **Responses**:
-  - **Server directory is empty**
-  - **Files in the directory: `<list of files/folders>`** - prints the list of all the files and subdirectories in the server directory.
-    Files have `[File]` identifier before them, folders respectively `[Folder]`.
-    **Indents** before the elements are used to show the hierarchical structure of the directory.
+### Quit Room
+- **Command**: `.q`
+- **Usage**: Allows the client to leave the current room.
+- **Client Prompt**: "Do you want to leave the room? (y/n)"
+- **Client Command**: (If 'y' is chosen) `.q`
+- **Server Response**: "You left ROOM `<roomID>`"
+- **Response Details**: The confirmation message ("ClientName left ROOM `<roomID>") is broadcasted to all clients in the room.
+- **Response Length**: The total length of the response is 14 bytes plus the length of the room ID.
 
+### Join Room
+- **Command**: `.j`
+- **Usage**: Allows the client to join a specified room.
+- **Client Command**: `.j <RoomID>`
+- **Server Response**: "You joined ROOM `<roomID>`"
+- **Response Details**: (If client is already in a room) The server processes the leave command for the current room before joining the new room. The server sends back a confirmation message including the room ID that the client joined. The message about client joining ("ClientName joined ROOM `<roomID>") is broadcasted to all clients in the room.
+- **Response Length**: The total length of the response is 16 bytes plus the length of the room ID.
 
-### INFO `<filename>`
-Requests information about a specific file or folder from the server.
-- **Responses**:
-  - **File does not exist** - no mentioned object present on the server
-  - **Information:** **Name**, **Size** (in bytes), **Type** (File/File Folder), **Last Modified** (YY-MM-DD HH:MM:SS).
+### Send File
+- **Command**: `.f`
+- **Usage**: Initiates a file transfer to the server, which is then distributed to other clients in the room.
+- **Client Response**: "You: sending the file <Filename>"
+- **Client Command**: `.f <Filename>`
+- **Server Response**: Server broadcasts "ClientName: sending the file <Filename>" to all clients in the room and then sends the file data. Server waits for `.a` acknowledgments from each client.
 
+_**Note**: After each command the line is cleared and only client/server response remains to keep the console clean._
 
-### DELETE `<filename>`
-Requests to delete a specific file or folder from the server.
-- **Responses**:
-  - **File/Folder does not exist on the server** – deleting the object not available in the server directory.
-  - **Failed to delete `<filename>`** - object deletion failure.
-  - **File/Folder was successfully deleted** – successful object deletion.
+### Acknowledge File Reception
+- **Command**: `.a`
+- **Usage**: Sent by the client to acknowledge successful receipt of a file.
+- **Client Command**: `.a`
+- **Server Response**: Server counts acknowledgments and once all are received, sends "Everyone received the file." to the sender.
+- **Response Length**: Constant, 27 bytes
 
-
-### GET `<filename>`
-Requests to upload a specific file from the server to the client directory.
-- **Server Responses**:
-  - **File already exists: `<filepath>`** – uploading the file already present in the client directory.
-  - **File does not exist `<filepath>`** – request file unavailable on the server.
-  - **File transfer failed** – caused either by the failure of data receiving or client disconnection.
-  - **File transfer completed** – file successfully transferred and saved to the client directory.
-
-- **Client Responses**:
-  - **Failed to open file for writing: `<filepath>`** - error in creating the file on the client’s end.
