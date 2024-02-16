@@ -147,10 +147,10 @@ class CommandHandler {
 
         for (SOCKET client : roomsClients[roomId]) {
             if (client != senderSocket) {
-                string notification = clientName + ": sending the file " + filename;
+                string notification = clientName + ": sending the file " + filename + ". Accept? [y/n]";
                 NetworkUtils::sendMessage(client, notification);
-                NetworkUtils::sendMessage(client, message);
-                NetworkUtils::sendFile(filePath, client);
+                //NetworkUtils::sendMessage(client, message);
+                //NetworkUtils::sendFile(filePath, client);
             }
         }
 
@@ -282,8 +282,33 @@ public:
                 sendFile(message);
             }
 
-            else if (message == ".ack") {
+            else if (message == ".a") {
                 ackReceive();
+            }
+
+            else if (message._Starts_with(".y ")) {
+                string filename = message.substr(3);
+                string path = baseDirectory + "/" + filename;
+
+                if (fs::exists(path)) {
+                    cout << "Sending file to client: " << filename << endl;
+                    NetworkUtils::sendMessage(clientSocket, "Receiving file from the server");
+                    string response = NetworkUtils::sendFile(path, clientSocket);
+                    cout << response << endl;
+                }
+                else {
+                    cerr << "File does not exist: " << filename << endl;
+                }
+            }
+
+            else if (message == ".n ") {
+                cout << clientName << " rejected the file." << endl;
+                /*lock_guard<mutex> lock(fileSendMutex);
+                expectedAcknowledgements--;
+                cout << "expected" << expectedAcknowledgements << endl;
+                if (receivedAcknowledgements == expectedAcknowledgements) {
+                    allFilesReceivedCondition.notify_one();
+                }*/
             }
 
             else {

@@ -10,6 +10,8 @@ using namespace std;
 namespace fs = std::filesystem;
 using namespace fs;
 
+atomic<bool> bFileReceivingState = false;
+
 class ConnectionManager {
 
     SOCKET clientSocket;
@@ -80,7 +82,7 @@ class CommandHandler {
 
     SOCKET clientSocket;
     string baseDirectory = "C:/Users/sofma/client-dir/";
-    string clientDirectory;
+    
     bool inRoom = false;
 
     string name, roomId;
@@ -143,6 +145,8 @@ class CommandHandler {
     }
 
 public:
+
+    string clientDirectory;
 
     CommandHandler(SOCKET socket) : clientSocket(socket) {}
 
@@ -219,7 +223,7 @@ public:
         string filePath = clientDirectory + "/" + filename;
         string status = NetworkUtils::receiveFile(filePath, clientSocket);
         cout << status << endl;
-        NetworkUtils::sendMessage(clientSocket, ".ack");
+        NetworkUtils::sendMessage(clientSocket, ".a");
     }
 };
 
@@ -229,6 +233,18 @@ class Client {
     SOCKET clientSocket;
 
     thread receiveThread;
+
+    bool expectingFile = false;
+    string expectedFileName;
+
+    string extractFileNameFromNotice(const string& message) {
+        size_t startPos = message.find(": sending the file ") + strlen(": sending the file ");
+        size_t endPos = message.find(". Accept? [y/n]");
+        if (startPos != string::npos && endPos != string::npos) {
+            return message.substr(startPos, endPos - startPos);
+        }
+        return "";
+    }
 
 public:
     Client() : connManager(),
@@ -253,27 +269,56 @@ public:
     void receiveMessages() {
         while (true) {
             string message = NetworkUtils::receiveMessage(clientSocket);
-            if (message == "") {
-                cerr << "Server disconnected.\n";
-                return;
-            }
-            if (message._Starts_with(".f ")) {
-                string filename = message.substr(3);
-                cmdHandler.receiveFile(filename);
+            if (bFileReceivingState) {
+                //NetworkUtils::sendMessage(clientSocket, ".y " + expectedFileName);
+                string path = cmdHandler.clientDirectory + "/" + expectedFileName;
+                bFileReceivingState = false;
+                cout << NetworkUtils::receiveFile(path, clientSocket) << endl;
+                NetworkUtils::sendMessage(clientSocket, ".a");
+                expectingFile = false;
             }
             else {
-                cout << message << endl;
+                //string message = NetworkUtils::receiveMessage(clientSocket);
+                if (message == "") {
+                    cerr << "Server disconnected.\n";
+                    break;
+                }
+
+                if (message.ends_with(". Accept? [y/n]")) {
+                    expectedFileName = extractFileNameFromNotice(message);
+                    cout << message << endl;
+                    expectingFile = true;
+                }
+                else if (!expectingFile) {
+                    cout << message << endl;
+                }
             }
+
         }
     }
 
     void processInput() {
         if (cmdHandler.isReady()) {
-            receiveThread = thread(&Client::receiveMessages, this);
+            thread receiveThread(&Client::receiveMessages, this);
+            receiveThread.detach();
+
             string message;
             while (true) {
                 getline(cin, message);
-                cmdHandler.handleCommands(message);
+
+                if (expectingFile) {
+                    if (message == "y" || message == "Y") {
+                        NetworkUtils::sendMessage(clientSocket, ".y " + expectedFileName);
+                        bFileReceivingState = true;
+                    }
+                    else if (message == "n" || message == "N") {
+                        NetworkUtils::sendMessage(clientSocket, ".n ");
+                    }
+                    expectingFile = false; // Reset the flag after handling the response
+                }
+                else {
+                    cmdHandler.handleCommands(message);
+                }
             }
         }
     }
