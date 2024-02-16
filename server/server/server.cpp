@@ -136,7 +136,7 @@ class CommandHandler {
         }
     }
 
-    void broadcastFile(const string& filename, SOCKET& senderSocket, const string& message) {
+    void broadcastFileName(const string& filename, SOCKET& senderSocket) {
         string filePath = baseDirectory + filename;
         {
             lock_guard<mutex> lock(fileSendMutex);
@@ -145,14 +145,17 @@ class CommandHandler {
             cout << expectedAcknowledgements << endl;
         }
 
-        for (SOCKET client : roomsClients[roomId]) {
-            if (client != senderSocket) {
-                string notification = clientName + ": sending the file " + filename + ". Accept? [y/n]";
-                NetworkUtils::sendMessage(client, notification);
-                //NetworkUtils::sendMessage(client, message);
-                //NetworkUtils::sendFile(filePath, client);
-            }
-        }
+        //for (SOCKET client : roomsClients[roomId]) {
+        //    if (client != senderSocket) {
+        //        string notification = clientName + ": sending the file " + filename + ". Accept? [y/n]";
+        //        NetworkUtils::sendMessage(client, notification);
+        //        //NetworkUtils::sendMessage(client, message);
+        //        //NetworkUtils::sendFile(filePath, client);
+        //    }
+        //}
+
+        string notification = clientName + ": sending the file " + filename + ". Accept? [y/n]";
+        addMessageToQueue(notification);
 
         unique_lock<mutex> lock(fileSendMutex);
         allFilesReceivedCondition.wait(lock, [this]() {
@@ -215,7 +218,7 @@ class CommandHandler {
         if (!filename.empty()) {
             string filePath = baseDirectory + filename;
             cout << NetworkUtils::receiveFile(filePath, clientSocket) << endl;
-            broadcastFile(filename, clientSocket, message);
+            broadcastFileName(filename, clientSocket);
         }
     }
 
@@ -303,12 +306,12 @@ public:
 
             else if (message == ".n ") {
                 cout << clientName << " rejected the file." << endl;
-                /*lock_guard<mutex> lock(fileSendMutex);
+                lock_guard<mutex> lock(fileSendMutex);
                 expectedAcknowledgements--;
                 cout << "expected" << expectedAcknowledgements << endl;
                 if (receivedAcknowledgements == expectedAcknowledgements) {
                     allFilesReceivedCondition.notify_one();
-                }*/
+                }
             }
 
             else {
