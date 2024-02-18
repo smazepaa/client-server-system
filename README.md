@@ -31,7 +31,7 @@ The protocol includes commands for joining and leaving rooms, sending text messa
 ### Send Message
 - **Command**: `.m`
 - **Usage**: Sends a message to all clients in the same room.
-- **Client Response**: "You: <Message>"
+- **Client Response**: "You: `<Message>`"
 - **Client Command**: `.m <Message>`
 - **Server Response**: No direct response to the sender.
 - **Response Details**: The message is broadcasted to all clients in the room. 
@@ -56,7 +56,7 @@ The protocol includes commands for joining and leaving rooms, sending text messa
 ### Send File
 - **Command**: `.f`
 - **Usage**: Initiates a file transfer to the server, which is then distributed to other clients in the room.
-- **Client Response**: "You: sending the file <Filename>"
+- **Client Response**: "You: sending the file `<Filename>`"
 - **Client Command**: `.f <Filename>`
 - **Server Response**: Server broadcasts "ClientName: sending the file <Filename>" to all clients in the room and then sends the file data. Server waits for `.a` acknowledgments from each client.
 
@@ -64,8 +64,20 @@ _**Note**: After each command the line is cleared and only client/server respons
 
 ### Acknowledge File Reception
 - **Command**: `.a`
-- **Usage**: Sent by the client to acknowledge successful receipt of a file.
+- **Usage**: Sent by the client application to acknowledge successful receipt of a file.
 - **Client Command**: `.a`
 - **Server Response**: Server counts acknowledgments and once all are received, sends "Everyone received the file." to the sender.
 - **Response Length**: Constant, 27 bytes
 
+### Accept File
+- **Command**: `.y`
+- **Usage**: Sent by the client application to accept the incoming file transfer request.
+- **Client Command**: `.y <Filename>`
+- **Server Response**: Upon receiving this command, the server begins the file transfer to the client.
+- **Response Length**: File size
+
+### Reject File
+- **Command**: `.n`
+- **Usage**: Sent by the client application to reject the incoming file transfer request.
+- **Client Command**: `.n`
+- **Server Response**: The server receives this command and acknowledges the client's decision to reject the file. It also adjusts the expected acknowledgment count for the ongoing file transfer operation. No direct response to the client, but to the file sender.
