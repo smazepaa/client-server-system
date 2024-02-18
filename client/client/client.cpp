@@ -3,6 +3,8 @@
 #include <string>
 #include <winsock2.h>
 #include <Ws2tcpip.h>
+#include <condition_variable>
+#include <mutex>
 #pragma comment(lib, "ws2_32.lib")
 #include "NetworkUtils.h"
 
@@ -11,6 +13,11 @@ namespace fs = std::filesystem;
 using namespace fs;
 
 atomic<bool> bFileReceivingState = false;
+// condition_variable waitForReceival;
+
+mutex cvMutex; // Mutex for condition variable synchronization
+condition_variable cv; // Condition variable for file reception state
+bool allReceived = false;
 
 class ConnectionManager {
 
@@ -120,7 +127,7 @@ class CommandHandler {
             cout << "You: sending the file " << filename << endl;
             NetworkUtils::sendMessage(clientSocket, message);
             string filePath = clientDirectory + "/" + filename;
-            cout << NetworkUtils::sendFile(filePath, clientSocket) << endl;
+            NetworkUtils::sendFile(filePath, clientSocket);
         }
         else {
             cout << "Cannot proceed without the filename." << endl;
@@ -237,6 +244,7 @@ class Client {
     bool expectingFile = false;
     string expectedFileName;
 
+
     string extractFileNameFromNotice(const string& message) {
         size_t startPos = message.find(": sending the file ") + strlen(": sending the file ");
         size_t endPos = message.find(". Accept? [y/n]");
@@ -284,11 +292,20 @@ public:
                     break;
                 }
 
-                if (message.ends_with(". Accept? [y/n]")) {
+                else if (message.ends_with(". Accept? [y/n]")) {
                     expectedFileName = extractFileNameFromNotice(message);
                     cout << message << endl;
                     expectingFile = true;
                 }
+
+                else if (message == "File received by clients, who accepted") {
+                    cout << message << endl;
+                    unique_lock<std::mutex> lk(cvMutex);
+                    allReceived = true;
+                    lk.unlock();
+                    cv.notify_one();
+                }
+
                 else if (!expectingFile) {
                     cout << message << endl;
                 }
@@ -304,17 +321,31 @@ public:
 
             string message;
             while (true) {
+
                 getline(cin, message);
 
                 if (expectingFile) {
-                    if (message == "y" || message == "Y") {
+                    if (message == "y") {
                         NetworkUtils::sendMessage(clientSocket, ".y " + expectedFileName);
                         bFileReceivingState = true;
                     }
-                    else if (message == "n" || message == "N") {
-                        NetworkUtils::sendMessage(clientSocket, ".n ");
+                    else if (message == "n") {
+                        NetworkUtils::sendMessage(clientSocket, ".n");
                     }
-                    expectingFile = false; // Reset the flag after handling the response
+                    expectingFile = false;
+                }
+
+                else if (message.starts_with(".f ")) {
+                    cmdHandler.handleCommands(message);
+
+                    unique_lock<mutex> lk(cvMutex);
+                    cv.wait(lk, [this]() {
+                        if (!allReceived) {
+                            cout << "Wait for users to receive the file to proceed" << endl;
+                        }
+                        return allReceived;
+                    });
+                    allReceived = false;
                 }
                 else {
                     cmdHandler.handleCommands(message);
