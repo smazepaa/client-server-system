@@ -148,15 +148,6 @@ class CommandHandler {
             cout << expectedAcknowledgements << endl;
         }
 
-        //for (SOCKET client : roomsClients[roomId]) {
-        //    if (client != senderSocket) {
-        //        string notification = clientName + ": sending the file " + filename + ". Accept? [y/n]";
-        //        NetworkUtils::sendMessage(client, notification);
-        //        //NetworkUtils::sendMessage(client, message);
-        //        //NetworkUtils::sendFile(filePath, client);
-        //    }
-        //}
-
         string notification = clientName + ": sending the file " + filename + ". Accept? [y/n]";
         addMessageToQueue(notification);
 
@@ -165,8 +156,8 @@ class CommandHandler {
             return expectedAcknowledgements == receivedAcknowledgements;
             });
 
-        cout << "File received by client, who accepted" << endl;
-        NetworkUtils::sendMessage(senderSocket, "File received by client, who accepted");
+        cout << "File received by clients, who accepted" << endl;
+        NetworkUtils::sendMessage(senderSocket, "File received by clients, who accepted");
         remove(filePath);
     }
 
