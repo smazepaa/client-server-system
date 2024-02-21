@@ -18,7 +18,7 @@ The protocol includes commands for joining and leaving rooms, sending text messa
 
 | Command                   | Message Content            | Example         | Total Length                           | Note                          |
 |---------------------------|----------------------------|-----------------|----------------------------------------|-------------------------------|
-| .m `<Message>`            | `.m` + space + `<Message>` | `.m Hello`      | Variable, (3 + message length) bytes   | User command to send a message. |
+| .m `<Message>`            | `.m` + space + `<Message>` | `.m Hello`      | Variable, (message length) bytes       | User command to send a message. **The .m prefix is excluded from the sending message.** |
 | .q                        | `.q`                       | `.q`            | 2 bytes                                | User command to quit a room.  |
 | .j `<RoomID>`             | `.j` + space + `<RoomID>`  | `.j 123`        | Variable, (3 + id length) bytes        | User command to join a room.  |
 | .f `<Filename>`           | `.f` + space + `<Filename>`| `.f file.txt`   | Variable, (3 + filename length) bytes  | User command to send a file.  |
@@ -32,7 +32,7 @@ The protocol includes commands for joining and leaving rooms, sending text messa
 - **Command**: `.m`
 - **Usage**: Sends a message to all clients in the same room.
 - **Client Response**: "You: `<Message>`"
-- **Client Command**: `.m <Message>`
+- **Client Command**: `<Message>`
 - **Server Response**: No direct response to the sender.
 - **Response Details**: The message is broadcasted to all clients in the room. 
 
