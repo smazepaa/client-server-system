@@ -42,7 +42,7 @@ The protocol includes commands for joining and leaving rooms, sending text messa
 - **Client Prompt**: "Do you want to leave the room? (y/n)"
 - **Client Command**: (If 'y' is chosen) `.q`
 - **Server Response**: "You left ROOM `<roomID>`"
-- **Response Details**: The confirmation message ("ClientName left ROOM `<roomID>") is broadcasted to all clients in the room.
+- **Response Details**: The confirmation message ("ClientName left the room") is broadcasted to all clients in the room.
 - **Response Length**: The total length of the response is 14 bytes plus the length of the room ID.
 
 ### Join Room
